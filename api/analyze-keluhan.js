@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -7,7 +9,26 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY belum diset' });
 
-  const prompt = `Kamu adalah analis kesehatan produk herbal Indonesia. Analisis daftar keluhan customer berikut.
+  const sb = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY
+  );
+
+  // ── 1. Cek cache di Supabase ──
+  const { data: cached } = await sb
+    .from('keluhan_ai_cache')
+    .select('keluhan, kategori, gejala, penyakit')
+    .in('keluhan', keluhanList);
+
+  const cachedMap = {};
+  (cached || []).forEach(r => { cachedMap[r.keluhan] = r; });
+
+  // ── 2. Pisah: sudah ada di cache vs belum ──
+  const needAI = keluhanList.filter(k => !cachedMap[k]);
+
+  let aiResults = [];
+  if (needAI.length) {
+    const prompt = `Kamu adalah analis kesehatan produk herbal Indonesia. Analisis daftar keluhan customer berikut.
 
 Untuk setiap keluhan, berikan:
 1. kategori: kategori utama keluhan (contoh: "Tulang & Sendi", "Pernapasan", "Pencernaan", "Reproduksi Pria", "Imunitas", "Metabolisme", "Kardiovaskular", "Kepala & Saraf", "Kulit", "Lainnya")
@@ -15,7 +36,7 @@ Untuk setiap keluhan, berikan:
 3. penyakit: 1-3 kemungkinan penyakit/kondisi yang relevan
 
 Daftar keluhan:
-${keluhanList.map((k, i) => `${i + 1}. ${k}`).join('\n')}
+${needAI.map((k, i) => `${i + 1}. ${k}`).join('\n')}
 
 Jawab HANYA dalam format JSON array seperti ini, tanpa teks lain:
 [
@@ -27,7 +48,6 @@ Jawab HANYA dalam format JSON array seperti ini, tanpa teks lain:
   }
 ]`;
 
-  try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -52,9 +72,27 @@ Jawab HANYA dalam format JSON array seperti ini, tanpa teks lain:
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) return res.status(500).json({ error: 'Format respons tidak valid' });
 
-    const result = JSON.parse(match[0]);
-    res.json({ result });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    aiResults = JSON.parse(match[0]);
+
+    // ── 3. Simpan hasil baru ke cache ──
+    const toInsert = aiResults.map(r => ({
+      keluhan : r.keluhan,
+      kategori: r.kategori || 'Lainnya',
+      gejala  : r.gejala   || '—',
+      penyakit: r.penyakit || '—',
+    }));
+    if (toInsert.length) {
+      await sb.from('keluhan_ai_cache').upsert(toInsert, { onConflict: 'keluhan' });
+    }
   }
+
+  // ── 4. Gabung cache + hasil baru ──
+  const allCached = Object.values(cachedMap).map(r => ({
+    keluhan : r.keluhan,
+    kategori: r.kategori,
+    gejala  : r.gejala,
+    penyakit: r.penyakit,
+  }));
+
+  res.json({ result: [...allCached, ...aiResults] });
 }
