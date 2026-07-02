@@ -310,6 +310,16 @@ tbody tr:hover { background: var(--surface2); }
 /* ── DIVIDER ── */
 .divider { height: 1px; background: var(--border); margin: 20px 0; }
 
+/* AI RESULT */
+.ai-kategori-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 12px; padding: 20px; }
+.ai-kat-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.ai-kat-name { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.ai-kat-count { font-size: 24px; font-weight: 800; color: var(--accent); line-height: 1; }
+.ai-kat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.ai-detail-wrap { overflow-x: auto; }
+.ai-detail-wrap table thead th { background: var(--surface2); }
+.kat-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
+
 .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .history-card {
   background: var(--surface); border: 1px solid var(--border);
@@ -558,6 +568,19 @@ tbody tr:hover { background: var(--surface2); }
           <div class="chart-card">
             <div class="chart-title"><span>📋</span> Ranking Keluhan</div>
             <div id="rankList" style="overflow-y:auto;max-height:280px"></div>
+          </div>
+        </div>
+
+        <!-- AI ANALISIS -->
+        <div class="card" style="margin-bottom:20px" id="aiSection">
+          <div class="card-header">
+            <span class="card-title">🤖 Analisis AI — Kategori, Gejala & Penyakit</span>
+            <button class="btn btn-primary" id="btnAI" onclick="runAIAnalysis()" style="font-size:12px">✨ Jalankan Analisis AI</button>
+          </div>
+          <div id="aiResult">
+            <div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">
+              Klik tombol di atas untuk analisis kategori & kemungkinan penyakit dari keluhan
+            </div>
           </div>
         </div>
 
@@ -1309,6 +1332,146 @@ function badgeStatus(s) {
   if (sl.includes('batal')||sl.includes('cancel')||sl.includes('retur'))   return `<span class="badge b-red">${s}</span>`;
   if (sl.includes('proses')||sl.includes('pending'))                        return `<span class="badge b-yellow">${s}</span>`;
   return `<span class="badge b-blue">${s}</span>`;
+}
+
+// ─────────────────────────────────────────────
+// AI ANALYSIS
+// ─────────────────────────────────────────────
+let aiResultMap  = {}; // { keluhan_norm: { kategori, gejala, penyakit } }
+let aiEnabled    = false;
+
+const KAT_COLORS = {
+  'Tulang & Sendi'    : '#f59e0b',
+  'Pernapasan'        : '#38bdf8',
+  'Pencernaan'        : '#22c55e',
+  'Reproduksi Pria'   : '#7c6ff7',
+  'Imunitas'          : '#f472b6',
+  'Metabolisme'       : '#fb923c',
+  'Kardiovaskular'    : '#ef4444',
+  'Kepala & Saraf'    : '#a78bfa',
+  'Kulit'             : '#34d399',
+  'Lainnya'           : '#9ca3af',
+};
+
+function katColor(kat) {
+  for (const k of Object.keys(KAT_COLORS)) {
+    if (kat?.includes(k.split(' ')[0])) return KAT_COLORS[k];
+  }
+  return '#9ca3af';
+}
+
+async function runAIAnalysis() {
+  const wk = currentFilter.filter(r => r.keluhan.trim());
+  if (!wk.length) { toast('⚠️ Tidak ada keluhan untuk dianalisis', 'warn'); return; }
+
+  const btn = document.getElementById('btnAI');
+  const res = document.getElementById('aiResult');
+  btn.disabled = true;
+  btn.textContent = '⏳ Menganalisis...';
+  res.innerHTML = `<div style="padding:32px;text-align:center;color:var(--muted)">
+    <div style="font-size:28px;margin-bottom:12px">🤖</div>
+    <div style="font-size:13px">AI sedang menganalisis ${[...new Set(wk.map(r=>normK(r.keluhan)))].length} jenis keluhan...</div>
+  </div>`;
+
+  // Ambil unique keluhan
+  const uniqueKeluhan = [...new Set(wk.map(r => normK(r.keluhan)))].filter(Boolean);
+
+  // Kirim ke API dalam batch 30
+  const BATCH = 30;
+  let allResults = [];
+  try {
+    for (let i = 0; i < uniqueKeluhan.length; i += BATCH) {
+      const batch = uniqueKeluhan.slice(i, i + BATCH);
+      const r = await fetch('/api/analyze-keluhan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keluhanList: batch }),
+      });
+      if (!r.ok) {
+        const err = await r.json();
+        throw new Error(err.error || 'API error');
+      }
+      const data = await r.json();
+      allResults = allResults.concat(data.result || []);
+    }
+
+    // Simpan ke map
+    aiResultMap = {};
+    allResults.forEach(item => {
+      aiResultMap[normK(item.keluhan)] = {
+        kategori: item.kategori || 'Lainnya',
+        gejala  : item.gejala   || '—',
+        penyakit: item.penyakit || '—',
+      };
+    });
+
+    renderAIResult(wk);
+    btn.textContent = '✨ Refresh Analisis AI';
+  } catch(err) {
+    res.innerHTML = `<div style="padding:20px;color:var(--red);font-size:13px">✗ ${err.message}</div>`;
+    toast('✗ AI error: ' + err.message, 'err');
+  }
+  btn.disabled = false;
+}
+
+function renderAIResult(data) {
+  const res = document.getElementById('aiResult');
+  if (!Object.keys(aiResultMap).length) return;
+
+  // Hitung per kategori
+  const katCount = {};
+  const katKeluhan = {};
+  data.filter(r=>r.keluhan.trim()).forEach(r => {
+    const ai = aiResultMap[normK(r.keluhan)];
+    const kat = ai?.kategori || 'Lainnya';
+    katCount[kat]   = (katCount[kat]   || 0) + 1;
+    if (!katKeluhan[kat]) katKeluhan[kat] = new Set();
+    katKeluhan[kat].add(normK(r.keluhan));
+  });
+
+  const sortedKat = Object.entries(katCount).sort((a,b)=>b[1]-a[1]);
+
+  // Kategori cards
+  const cards = sortedKat.map(([kat, cnt]) => {
+    const col = katColor(kat);
+    return `<div class="ai-kat-card" style="border-left:3px solid ${col}">
+      <div class="ai-kat-name">${kat}</div>
+      <div class="ai-kat-count" style="color:${col}">${cnt}</div>
+      <div class="ai-kat-sub">${katKeluhan[kat].size} jenis keluhan</div>
+    </div>`;
+  }).join('');
+
+  // Detail table — unique keluhan dengan AI info
+  const uniqueRows = [...new Set(data.filter(r=>r.keluhan.trim()).map(r=>normK(r.keluhan)))]
+    .map(k => ({ keluhan: k, cnt: data.filter(r=>normK(r.keluhan)===k).length, ai: aiResultMap[k] }))
+    .filter(r => r.ai)
+    .sort((a,b) => b.cnt - a.cnt);
+
+  const tableRows = uniqueRows.map((r,i) => {
+    const col = katColor(r.ai.kategori);
+    return `<tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td style="max-width:200px;word-break:break-word">${r.keluhan}</td>
+      <td><span class="kat-badge" style="background:${col}22;color:${col}">${r.ai.kategori}</span></td>
+      <td style="font-size:12px">${r.ai.gejala}</td>
+      <td style="font-size:12px;color:var(--muted)">${r.ai.penyakit}</td>
+      <td style="font-weight:700;color:var(--accent)">${r.cnt}</td>
+    </tr>`;
+  }).join('');
+
+  res.innerHTML = `
+    <div class="ai-kategori-grid">${cards}</div>
+    <div style="padding:0 20px 20px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:12px">Detail per Keluhan</div>
+      <div class="ai-detail-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Keluhan</th><th>Kategori</th><th>Gejala Utama</th><th>Kemungkinan Penyakit</th><th>Jumlah</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 // ─────────────────────────────────────────────
