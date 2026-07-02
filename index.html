@@ -578,13 +578,13 @@ tbody tr:hover { background: var(--surface2); }
 // ─────────────────────────────────────────────
 // SUPABASE INIT
 // ─────────────────────────────────────────────
-let supabase = null;
+let sbClient = null;
 async function initSupabase() {
   try {
     const res = await fetch('/api/config');
     const { supabaseUrl, supabaseKey } = await res.json();
     if (supabaseUrl && supabaseKey) {
-      supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
     }
   } catch(e) { /* offline mode */ }
 }
@@ -1112,12 +1112,12 @@ function exportCSV() {
 // SAVE SUPABASE
 // ─────────────────────────────────────────────
 async function saveToSupabase() {
-  if (!supabase) { toast('⚠️ Supabase belum dikonfigurasi', 'warn'); return; }
+  if (!sbClient) { toast('⚠️ Supabase belum dikonfigurasi', 'warn'); return; }
   if (!processedData.length) { toast('⚠️ Analisis dulu datanya', 'warn'); return; }
   const name = document.getElementById('batchName').value || 'Upload ' + new Date().toLocaleDateString('id-ID');
   toast('⏳ Menyimpan...');
   try {
-    const { data: batch, error: e1 } = await supabase
+    const { data: batch, error: e1 } = await sbClient
       .from('keluhan_uploads').insert({ batch_name: name, total_rows: processedData.length })
       .select().single();
     if (e1) throw e1;
@@ -1127,7 +1127,7 @@ async function saveToSupabase() {
       team: r.team||null, cs: r.cs||null, status_akhir: r.status||null,
     }));
     for (let i=0;i<rows.length;i+=500) {
-      const { error: e2 } = await supabase.from('keluhan_data').insert(rows.slice(i,i+500));
+      const { error: e2 } = await sbClient.from('keluhan_data').insert(rows.slice(i,i+500));
       if (e2) throw e2;
     }
     toast('✅ Tersimpan! ' + rows.length + ' keluhan.');
