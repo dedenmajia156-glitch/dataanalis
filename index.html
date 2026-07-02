@@ -417,6 +417,18 @@ tbody tr:hover { background: var(--surface2); }
               <div class="field">
                 <label>Kolom Keluhan</label>
                 <input type="text" id="colKeluhan" value="Keluhan" placeholder="Nama kolom keluhan"/>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="field">
+                <label>🏷 SKU Produk <span id="skuStatus" style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">(belum dimuat)</span></label>
+                <label style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;cursor:pointer;font-size:12px;color:var(--muted)">
+                  📂 Upload SKU CSV (kode, nama_produk)
+                  <input type="file" id="skuFileInput" accept=".csv,.xlsx,.xls" style="display:none"/>
+                </label>
+                <span class="field-hint">Atau otomatis dari Supabase saat deploy</span>
+              </div>
                 <span class="field-hint">Nama kolom di Excel yang berisi teks keluhan</span>
               </div>
 
@@ -606,31 +618,70 @@ async function loadSKU() {
   if (!sbClient) return;
   try {
     const { data } = await sbClient.from('sku_produk').select('kode,nama_produk');
-    if (data) {
-      skuMap = {};
+    if (data && data.length) {
       data.forEach(s => { skuMap[s.kode.toUpperCase()] = s.nama_produk; });
-      // update badge di sidebar
-      document.getElementById('sb-sku').textContent = Object.keys(skuMap).length + ' SKU dimuat';
+      updateSKUBadge();
     }
   } catch(e) { console.warn('SKU load gagal:', e.message); }
 }
 
-function resolveProduk(raw) {
-  if (!raw) return '';
-  // Coba exact match dulu
-  const upper = raw.trim().toUpperCase();
-  if (skuMap[upper]) return skuMap[upper];
-  // Coba cari kode SKU di dalam string (misal "KOI 2", "HERBAPIL 1 pcs")
-  for (const kode of Object.keys(skuMap)) {
-    if (upper.startsWith(kode)) return skuMap[kode];
-  }
-  // Format "Nama Customer|SKU QTY"
-  if (raw.includes('|')) {
-    const skuPart = raw.split('|')[1]?.trim().toUpperCase() || '';
-    const match   = skuPart.match(/^([A-Z]+)/);
-    if (match && skuMap[match[1]]) return skuMap[match[1]];
-  }
-  return raw; // fallback: pakai raw
+function updateSKUBadge() {
+  const n = Object.keys(skuMap).length;
+  const el = document.getElementById('skuStatus');
+  if (el) el.textContent = n ? `✓ ${n} SKU dimuat` : '(belum dimuat)';
+  const sb = document.getElementById('sb-sku');
+  if (sb) sb.textContent = n ? `${n} SKU dimuat` : '—';
+}
+
+// Upload SKU via CSV/Excel
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('skuFileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        let rows;
+        if (ext === 'csv') {
+          rows = csvToArray(ev.target.result);
+        } else {
+          const wb = XLSX.read(ev.target.result, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        }
+        let loaded = 0;
+        rows.forEach(r => {
+          const kode = (r.kode || r.Kode || r.SKU || r.sku || '').toString().trim().toUpperCase();
+          const nama = (r.nama_produk || r.NamaProduk || r.Nama || r.nama || '').toString().trim();
+          if (kode && nama) { skuMap[kode] = nama; loaded++; }
+        });
+        updateSKUBadge();
+        toast(`✅ ${loaded} SKU berhasil dimuat dari file!`);
+      } catch(err) {
+        toast('✗ Gagal baca SKU: ' + err.message, 'err');
+      }
+    };
+    if (ext === 'csv') reader.readAsText(file, 'UTF-8');
+    else reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  });
+});
+
+function parseSKUFromNama(nama) {
+  // Format: "Nama Customer|SKU QTY" → ambil setelah |
+  if (!nama || !nama.includes('|')) return null;
+  const skuRaw = nama.split('|')[1]?.trim().toUpperCase() || '';
+  if (!skuRaw) return null;
+  const match = skuRaw.match(/^([A-Z]+)/);
+  return match ? match[1] : null;
+}
+
+function resolveProduk(namaField) {
+  const kode = parseSKUFromNama(namaField);
+  if (kode && skuMap[kode]) return skuMap[kode];
+  if (kode) return kode; // SKU ketemu tapi belum ada di map, pakai kode aja
+  return ''; // ga ada SKU di nama
 }
 
 // ─────────────────────────────────────────────
@@ -841,15 +892,19 @@ function analyzeData() {
   const cp = document.getElementById('colProduk').value  || 'Jumlah Pesanan';
   const ck = document.getElementById('colKeluhan').value || 'Keluhan';
 
-  processedData = rawData.map(row => ({
-    tanggal: normDate(getAny(row,'Tanggal','tanggal','Tgl','tgl','Date')),
-    nama   : getAny(row,'Nama','nama','NamaCustomer','name'),
-    produk : resolveProduk(getCol(row, cp) || getAny(row,'Produk','produk','GOODS_DESC')),
-    keluhan: getCol(row, ck),
-    team   : getAny(row,'TEAM','Team','team'),
-    cs     : getAny(row,'CS','CSA','csa','cs'),
-    status : getAny(row,'Status Akhir','StatusAkhir','Status','status'),
-  })).filter(r => r.produk || r.keluhan);
+  processedData = rawData.map(row => {
+    const namaRaw      = getAny(row,'Nama','nama','NamaCustomer','name');
+    const namaCustomer = namaRaw.includes('|') ? namaRaw.split('|')[0].trim() : namaRaw;
+    return {
+      tanggal: normDate(getAny(row,'Tanggal','tanggal','Tgl','tgl','Date')),
+      nama   : namaCustomer,
+      produk : resolveProduk(namaRaw),
+      keluhan: getCol(row, ck),
+      team   : getAny(row,'TEAM','Team','team'),
+      cs     : getAny(row,'CS','CSA','csa','cs'),
+      status : getAny(row,'Status Akhir','StatusAkhir','Status','status'),
+    };
+  }).filter(r => r.produk || r.keluhan);
 
   if (!processedData.length) {
     toast('⚠️ Tidak ada data valid. Cek nama kolom Produk/Keluhan.', 'warn');
