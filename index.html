@@ -408,12 +408,19 @@ tbody tr:hover { background: var(--surface2); }
 
 <script>
 // ── CONFIG SUPABASE ─────────────────────────────────────────────
-const SUPA_URL  = 'YOUR_SUPABASE_URL';
-const SUPA_KEY  = 'YOUR_SUPABASE_ANON_KEY';
-let supabase    = null;
-if (SUPA_URL !== 'YOUR_SUPABASE_URL') {
-  supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+let supabase = null;
+async function initSupabase() {
+  try {
+    const res = await fetch('/api/config');
+    const { supabaseUrl, supabaseKey } = await res.json();
+    if (supabaseUrl && supabaseKey) {
+      supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    }
+  } catch(e) {
+    console.warn('Supabase config tidak ditemukan, mode offline.');
+  }
 }
+initSupabase();
 
 // ── STATE ───────────────────────────────────────────────────────
 let rawData      = [];
