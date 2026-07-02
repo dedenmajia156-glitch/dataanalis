@@ -1,3 +1,5 @@
+const norm = s => String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -10,24 +12,27 @@ export default async function handler(req, res) {
 
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY belum diset' });
 
+  // Normalisasi semua keluhan agar key konsisten
+  const normalizedList = keluhanList.map(k => norm(k));
+
   // ── 1. Cek cache di Supabase via REST ──
   let cachedMap = {};
   if (sbUrl && sbKey) {
     try {
-      const inList = keluhanList.map(k => k.replace(/,/g,' ')).join(',');
+      const inList = normalizedList.map(k => k.replace(/,/g,' ')).join(',');
       const cacheRes = await fetch(
         `${sbUrl}/rest/v1/keluhan_ai_cache?select=keluhan,kategori,gejala,penyakit&keluhan=in.(${encodeURIComponent(inList)})`,
         { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` } }
       );
       if (cacheRes.ok) {
         const cached = await cacheRes.json();
-        (cached || []).forEach(r => { cachedMap[r.keluhan] = r; });
+        (cached || []).forEach(r => { cachedMap[norm(r.keluhan)] = r; });
       }
     } catch(e) { /* skip cache error */ }
   }
 
   // ── 2. Pisah: sudah cache vs belum ──
-  const needAI = keluhanList.filter(k => !cachedMap[k]);
+  const needAI = normalizedList.filter(k => !cachedMap[k]);
   let aiResults = [];
 
   if (needAI.length) {
@@ -73,7 +78,7 @@ Jawab HANYA dalam format JSON array seperti ini, tanpa teks lain:
     // ── 3. Simpan ke cache via Supabase REST ──
     if (sbUrl && sbKey && aiResults.length) {
       const toInsert = aiResults.map(r => ({
-        keluhan : r.keluhan,
+        keluhan : norm(r.keluhan),   // normalisasi key agar konsisten
         kategori: r.kategori || 'Lainnya',
         gejala  : r.gejala   || '—',
         penyakit: r.penyakit || '—',
@@ -97,7 +102,7 @@ Jawab HANYA dalam format JSON array seperti ini, tanpa teks lain:
 
   // ── 4. Gabung cache + hasil baru ──
   const fromCache = Object.values(cachedMap).map(r => ({
-    keluhan: r.keluhan, kategori: r.kategori, gejala: r.gejala, penyakit: r.penyakit,
+    keluhan: norm(r.keluhan), kategori: r.kategori, gejala: r.gejala, penyakit: r.penyakit,
   }));
 
   res.json({ result: [...fromCache, ...aiResults] });
