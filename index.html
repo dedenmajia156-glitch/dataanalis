@@ -473,9 +473,7 @@ tbody tr:hover { background: var(--surface2); }
                   🔍 Analisis Sekarang
                 </button>
               </div>
-              <button class="btn btn-outline" id="btnSave" onclick="saveToSupabase()" disabled style="width:100%">
-                💾 Simpan ke Database
-              </button>
+              <div id="saveStatus" style="font-size:12px;color:var(--muted);text-align:center;display:none">💾 Auto-save aktif</div>
             </div>
           </div>
         </div>
@@ -637,14 +635,8 @@ tbody tr:hover { background: var(--surface2); }
     </div><!-- end page-analisis -->
 
     <!-- ═══ PAGE: RIWAYAT ═══ -->
-    <div class="page" id="page-riwayat">
-      <div id="historyList">
-        <div class="empty-state">
-          <div class="e-icon">🕘</div>
-          <h3>Belum ada riwayat</h3>
-          <p>Data akan muncul setelah Supabase terhubung</p>
-        </div>
-      </div>
+    <div id="page-riwayat" style="display:none">
+      <div id="historyList"></div>
     </div>
 
   </div><!-- end content -->
@@ -777,14 +769,25 @@ const charts     = {};
 // ROUTING
 // ─────────────────────────────────────────────
 function goPage(name) {
+  // Sembunyikan semua page
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-riwayat').style.display = 'none';
+
+  // Aktifkan nav
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
+
+  // Tampilkan page yang dipilih
+  if (name === 'riwayat') {
+    document.getElementById('page-riwayat').style.display = 'block';
+  } else {
+    document.getElementById('page-' + name).classList.add('active');
+  }
+
   const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan', riwayat: 'Riwayat Upload' };
   document.getElementById('topbarTitle').textContent = titles[name] || name;
   document.getElementById('btnRefreshHistory').style.display = name === 'riwayat' ? 'block' : 'none';
-  document.querySelector('.main').scrollTo({ top: 0 });
+  document.querySelector('.main').scrollTop = 0;
   if (name === 'riwayat') loadHistory();
 }
 
@@ -941,7 +944,7 @@ function processFile(file) {
       rawData = data;
       setStatus('ok', '✓ ' + data.length.toLocaleString() + ' baris berhasil dimuat dari ' + file.name);
       document.getElementById('btnAnalyze').disabled = false;
-      document.getElementById('btnSave').disabled    = false;
+      document.getElementById('saveStatus').style.display = 'block';
       if (!document.getElementById('batchName').value) {
         document.getElementById('batchName').value = file.name.replace(/\.[^.]+$/, '');
       }
@@ -1091,6 +1094,7 @@ function analyzeData() {
 
   goPage('analisis');
   toast('✅ Analisis selesai! ' + processedData.length + ' baris diproses.');
+  saveToSupabase();
   if (aiEnabled) runAIAnalysis();
 }
 
