@@ -705,26 +705,14 @@ function parseSKUFromNama(nama) {
   return match ? match[1] : null;
 }
 
-function resolveProduk(namaField, produkField) {
-  // 1. Coba dari Nama|SKU format
-  const kodeFromNama = parseSKUFromNama(namaField);
-  if (kodeFromNama && skuMap[kodeFromNama]) return skuMap[kodeFromNama];
-
-  // 2. Coba dari kolom produk langsung (Jumlah Pesanan)
-  if (produkField) {
-    const upper = produkField.trim().toUpperCase();
-    // Exact match
-    if (skuMap[upper]) return skuMap[upper];
-    // Prefix match: "KOI 1", "KOI2", "KOI 1 PCS"
-    for (const kode of Object.keys(skuMap)) {
-      if (upper.startsWith(kode)) return skuMap[kode];
-    }
-    // Kalau tidak ada di skuMap, return raw value-nya
-    return produkField;
-  }
-
-  if (kodeFromNama) return kodeFromNama;
-  return '';
+function resolveProduk(namaField) {
+  // SKU selalu dari kolom Nama format "NamaCustomer|SKU"
+  const kode = parseSKUFromNama(namaField);
+  if (!kode) return '';
+  // Kalau ada di skuMap → pakai nama produk lengkap
+  if (skuMap[kode]) return skuMap[kode];
+  // Kalau skuMap belum loaded → pakai kode SKU-nya dulu
+  return kode;
 }
 
 // ─────────────────────────────────────────────
@@ -1028,11 +1016,10 @@ function analyzeData() {
   processedData = rawData.map(row => {
     const namaRaw      = getAny(row,'Nama','nama','NamaCustomer','name');
     const namaCustomer = namaRaw.includes('|') ? namaRaw.split('|')[0].trim() : namaRaw;
-    const produkRaw = getCol(row, cp) || getAny(row,'Produk','produk','GOODS_DESC');
     return {
       tanggal: normDate(getAny(row,'Tanggal','tanggal','Tgl','tgl','Date')),
       nama   : namaCustomer,
-      produk : resolveProduk(namaRaw, produkRaw),
+      produk : resolveProduk(namaRaw),
       keluhan: getCol(row, ck),
       team   : getAny(row,'TEAM','Team','team'),
       cs     : getAny(row,'CS','CSA','csa','cs'),
