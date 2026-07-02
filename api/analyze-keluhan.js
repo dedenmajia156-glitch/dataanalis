@@ -14,9 +14,9 @@ export default async function handler(req, res) {
   let cachedMap = {};
   if (sbUrl && sbKey) {
     try {
-      const encoded = keluhanList.map(k => `"${k.replace(/"/g,'\\"')}"`).join(',');
+      const inList = keluhanList.map(k => k.replace(/,/g,' ')).join(',');
       const cacheRes = await fetch(
-        `${sbUrl}/rest/v1/keluhan_ai_cache?select=keluhan,kategori,gejala,penyakit&keluhan=in.(${encodeURIComponent(encoded)})`,
+        `${sbUrl}/rest/v1/keluhan_ai_cache?select=keluhan,kategori,gejala,penyakit&keluhan=in.(${encodeURIComponent(inList)})`,
         { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` } }
       );
       if (cacheRes.ok) {
