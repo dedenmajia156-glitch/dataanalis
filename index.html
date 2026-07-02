@@ -310,6 +310,19 @@ tbody tr:hover { background: var(--surface2); }
 /* ── DIVIDER ── */
 .divider { height: 1px; background: var(--border); margin: 20px 0; }
 
+.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.history-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+  cursor: pointer; transition: all 0.18s;
+}
+.history-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.history-card .hc-name { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.history-card .hc-meta { font-size: 12px; color: var(--muted); display:flex; gap:12px; flex-wrap:wrap; }
+.history-card .hc-badge { font-size: 11px; background: var(--accent-soft); color: var(--accent); padding: 2px 8px; border-radius: 20px; }
+.history-card .hc-actions { margin-top: 12px; display:flex; gap:8px; }
+.btn-sm { padding: 5px 12px; font-size: 11px; border-radius: 6px; }
+
 @media (max-width: 900px) {
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .charts-grid { grid-template-columns: 1fr; }
@@ -335,6 +348,9 @@ tbody tr:hover { background: var(--surface2); }
     </div>
     <div class="nav-item" id="nav-analisis" onclick="goPage('analisis')">
       <span class="ni">📈</span> Analisis
+    </div>
+    <div class="nav-item" id="nav-riwayat" onclick="goPage('riwayat')">
+      <span class="ni">🕘</span> Riwayat Upload
     </div>
   </nav>
 
@@ -586,6 +602,21 @@ tbody tr:hover { background: var(--surface2); }
       </div><!-- end dashboard -->
     </div><!-- end page-analisis -->
 
+    <!-- ═══ PAGE: RIWAYAT ═══ -->
+    <div class="page" id="page-riwayat">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div style="font-size:16px;font-weight:700">Riwayat Upload</div>
+        <button class="btn btn-outline" onclick="loadHistory()" style="font-size:12px">↺ Refresh</button>
+      </div>
+      <div id="historyList">
+        <div class="empty-state">
+          <div class="e-icon">🕘</div>
+          <h3>Belum ada riwayat</h3>
+          <p>Data akan muncul setelah Supabase terhubung</p>
+        </div>
+      </div>
+    </div>
+
   </div><!-- end content -->
 </div><!-- end main -->
 
@@ -677,11 +708,26 @@ function parseSKUFromNama(nama) {
   return match ? match[1] : null;
 }
 
-function resolveProduk(namaField) {
-  const kode = parseSKUFromNama(namaField);
-  if (kode && skuMap[kode]) return skuMap[kode];
-  if (kode) return kode; // SKU ketemu tapi belum ada di map, pakai kode aja
-  return ''; // ga ada SKU di nama
+function resolveProduk(namaField, produkField) {
+  // 1. Coba dari Nama|SKU format
+  const kodeFromNama = parseSKUFromNama(namaField);
+  if (kodeFromNama && skuMap[kodeFromNama]) return skuMap[kodeFromNama];
+
+  // 2. Coba dari kolom produk langsung (Jumlah Pesanan)
+  if (produkField) {
+    const upper = produkField.trim().toUpperCase();
+    // Exact match
+    if (skuMap[upper]) return skuMap[upper];
+    // Prefix match: "KOI 1", "KOI2", "KOI 1 PCS"
+    for (const kode of Object.keys(skuMap)) {
+      if (upper.startsWith(kode)) return skuMap[kode];
+    }
+    // Kalau tidak ada di skuMap, return raw value-nya
+    return produkField;
+  }
+
+  if (kodeFromNama) return kodeFromNama;
+  return '';
 }
 
 // ─────────────────────────────────────────────
@@ -702,8 +748,97 @@ function goPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
-  const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan' };
+  const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan', riwayat: 'Riwayat Upload' };
   document.getElementById('topbarTitle').textContent = titles[name] || name;
+  if (name === 'riwayat') loadHistory();
+}
+
+// ─────────────────────────────────────────────
+// HISTORY
+// ─────────────────────────────────────────────
+async function loadHistory() {
+  const el = document.getElementById('historyList');
+  if (!sbClient) {
+    el.innerHTML = `<div class="empty-state"><div class="e-icon">🔌</div><h3>Supabase belum terhubung</h3><p>Deploy ke Vercel dulu ya gan</p></div>`;
+    return;
+  }
+  el.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:20px">⏳ Memuat riwayat...</div>`;
+  try {
+    const { data, error } = await sbClient
+      .from('keluhan_uploads')
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+    if (error) throw error;
+    if (!data.length) {
+      el.innerHTML = `<div class="empty-state"><div class="e-icon">🕘</div><h3>Belum ada riwayat</h3><p>Upload dan simpan data dulu</p></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="history-grid">${data.map(b => `
+      <div class="history-card" onclick="loadBatch('${b.id}', '${b.batch_name.replace(/'/g,"\\'")}')">
+        <div class="hc-name">📁 ${b.batch_name}</div>
+        <div class="hc-meta">
+          <span>📋 ${b.total_rows?.toLocaleString() || '—'} baris</span>
+          <span>🗓 ${new Date(b.uploaded_at).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}</span>
+        </div>
+        <div class="hc-actions">
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();loadBatch('${b.id}','${b.batch_name.replace(/'/g,"\\'")}')">📈 Lihat Analisis</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}')">🗑</button>
+        </div>
+      </div>`).join('')}</div>`;
+  } catch(err) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px;font-size:13px">✗ ${err.message}</div>`;
+  }
+}
+
+async function loadBatch(batchId, batchName) {
+  if (!sbClient) return;
+  toast('⏳ Memuat data ' + batchName + '...');
+  try {
+    const { data, error } = await sbClient
+      .from('keluhan_data')
+      .select('*')
+      .eq('batch_id', batchId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    if (!data.length) { toast('⚠️ Tidak ada data di batch ini', 'warn'); return; }
+
+    processedData = data.map(r => ({
+      tanggal: r.tanggal || '',
+      nama   : r.nama    || '',
+      produk : r.produk  || '',
+      keluhan: r.keluhan || '',
+      team   : r.team    || '',
+      cs     : r.cs      || '',
+      status : r.status_akhir || '',
+    }));
+
+    document.getElementById('sb-file').textContent  = batchName;
+    document.getElementById('sb-count').textContent = processedData.length.toLocaleString() + ' baris';
+
+    populateFilters(processedData);
+    currentFilter = [...processedData];
+    renderAll(currentFilter);
+
+    document.getElementById('emptyAnalisis').style.display = 'none';
+    document.getElementById('dashboard').style.display     = 'block';
+
+    goPage('analisis');
+    toast('✅ ' + processedData.length.toLocaleString() + ' baris dimuat dari ' + batchName);
+  } catch(err) {
+    toast('✗ ' + err.message, 'err');
+  }
+}
+
+async function deleteBatch(batchId) {
+  if (!confirm('Hapus batch ini? Data keluhan ikut terhapus.')) return;
+  try {
+    const { error } = await sbClient.from('keluhan_uploads').delete().eq('id', batchId);
+    if (error) throw error;
+    toast('🗑 Batch dihapus.');
+    loadHistory();
+  } catch(err) {
+    toast('✗ ' + err.message, 'err');
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -895,10 +1030,11 @@ function analyzeData() {
   processedData = rawData.map(row => {
     const namaRaw      = getAny(row,'Nama','nama','NamaCustomer','name');
     const namaCustomer = namaRaw.includes('|') ? namaRaw.split('|')[0].trim() : namaRaw;
+    const produkRaw = getCol(row, cp) || getAny(row,'Produk','produk','GOODS_DESC');
     return {
       tanggal: normDate(getAny(row,'Tanggal','tanggal','Tgl','tgl','Date')),
       nama   : namaCustomer,
-      produk : resolveProduk(namaRaw),
+      produk : resolveProduk(namaRaw, produkRaw),
       keluhan: getCol(row, ck),
       team   : getAny(row,'TEAM','Team','team'),
       cs     : getAny(row,'CS','CSA','csa','cs'),
