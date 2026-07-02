@@ -78,16 +78,20 @@ Jawab HANYA dalam format JSON array seperti ini, tanpa teks lain:
         gejala  : r.gejala   || '—',
         penyakit: r.penyakit || '—',
       }));
-      await fetch(`${sbUrl}/rest/v1/keluhan_ai_cache`, {
+      const saveRes = await fetch(`${sbUrl}/rest/v1/keluhan_ai_cache?on_conflict=keluhan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           apikey: sbKey,
           Authorization: `Bearer ${sbKey}`,
-          Prefer: 'resolution=merge-duplicates',
+          Prefer: 'resolution=merge-duplicates,return=minimal',
         },
         body: JSON.stringify(toInsert),
       });
+      if (!saveRes.ok) {
+        const errText = await saveRes.text();
+        console.error('Cache save error:', errText);
+      }
     }
   }
 
