@@ -113,8 +113,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 }
 .btn-icon:hover { color: var(--text); border-color: var(--accent); }
 
-.content { padding: 28px; flex: 1; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
-.page { width: 100%; }
+.content { padding: 28px; flex: 1; }
+.page { width: 100%; display: none; }
+.page.active { display: block; }
 
 /* ── PAGE ── */
 .page { display: none; }
@@ -324,8 +325,8 @@ tbody tr:hover { background: var(--surface2); }
 .kat-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
 
 .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-content: start; }
-#page-riwayat { display: flex; flex-direction: column; }
-#historyList { width: 100%; }
+#page-riwayat, #historyList { width: 100%; }
+.history-grid { margin-top: 0; }
 .history-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 18px 20px;
@@ -782,6 +783,7 @@ function goPage(name) {
   const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan', riwayat: 'Riwayat Upload' };
   document.getElementById('topbarTitle').textContent = titles[name] || name;
   document.getElementById('btnRefreshHistory').style.display = name === 'riwayat' ? 'block' : 'none';
+  window.scrollTo({ top: 0 });
   if (name === 'riwayat') loadHistory();
 }
 
