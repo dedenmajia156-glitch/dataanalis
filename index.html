@@ -1130,6 +1130,7 @@ function analyzeData() {
 
   goPage('analisis');
   toast('✅ Analisis selesai! ' + processedData.length + ' baris diproses. Menyimpan...');
+  if (aiEnabled) runAIAnalysis();
   saveToSupabase();
 }
 
@@ -1688,7 +1689,7 @@ async function saveToSupabase() {
       .from('keluhan_uploads').insert({ batch_name: name, total_rows: processedData.length })
       .select().single();
     if (e1) throw e1;
-    const rows = processedData.filter(r=>r.keluhan.trim()).map(r=>({
+    const rows = processedData.filter(r=>r.keluhan?.trim()).map(r=>({
       batch_id: batch.id, tanggal: r.tanggal||null, nama: r.nama||null,
       produk: r.produk||null, keluhan: r.keluhan||null,
       team: r.team||null, cs: r.cs||null, status_akhir: r.status||null,
@@ -1699,7 +1700,6 @@ async function saveToSupabase() {
     }
     toast('✅ Tersimpan! ' + rows.length + ' keluhan. Memuat semua data...');
     await loadAllData();
-    if (aiEnabled) runAIAnalysis();
   } catch(err) { toast('✗ ' + err.message, 'err'); }
 }
 
