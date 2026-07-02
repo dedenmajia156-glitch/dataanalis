@@ -242,12 +242,12 @@ tbody tr:hover { background: var(--surface2); }
     <h2>📂 Upload Data Closing</h2>
     <div class="upload-grid">
       <div>
-        <div class="drop-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="drop-area" id="dropZone">
           <div class="icon">📑</div>
           <p>Drop file Excel di sini atau klik untuk pilih</p>
           <small>Format: .xlsx / .xls / .csv</small>
-          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv"/>
         </div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none"/>
         <div id="drop-status" class="drop-status"></div>
       </div>
       <div class="upload-settings">
@@ -443,7 +443,10 @@ if (localStorage.getItem('theme') === 'light') {
 }
 
 // ── DROPZONE ────────────────────────────────────────────────────
-const dz = document.getElementById('dropZone');
+const dz       = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dz.addEventListener('click', () => fileInput.click());
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
 dz.addEventListener('drop', e => {
@@ -451,7 +454,7 @@ dz.addEventListener('drop', e => {
   const f = e.dataTransfer.files[0];
   if (f) processFile(f);
 });
-document.getElementById('fileInput').addEventListener('change', e => {
+fileInput.addEventListener('change', e => {
   if (e.target.files[0]) processFile(e.target.files[0]);
 });
 
@@ -494,13 +497,32 @@ function processFile(file) {
 }
 
 // ── CSV PARSER ──────────────────────────────────────────────────
+function detectDelimiter(firstLine) {
+  const counts = { ',': 0, ';': 0, '\t': 0 };
+  for (const c of firstLine) if (counts[c] !== undefined) counts[c]++;
+  return Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+}
+
+function splitCSVLine(line, delim) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (const c of line) {
+    if (c === '"') { inQ = !inQ; }
+    else if (c === delim && !inQ) { result.push(cur); cur = ''; }
+    else cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
 function csvToArray(str) {
   const lines = str.split(/\r?\n/).filter(l => l.trim());
   if (!lines.length) return [];
-  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  const delim   = detectDelimiter(lines[0]);
+  const headers = splitCSVLine(lines[0], delim).map(h => h.replace(/^"|"$/g,'').trim());
   return lines.slice(1).map(line => {
-    const vals = line.split(',');
-    const obj = {};
+    const vals = splitCSVLine(line, delim);
+    const obj  = {};
     headers.forEach((h, i) => { obj[h] = (vals[i]||'').replace(/^"|"$/g,'').trim(); });
     return obj;
   }).filter(row => Object.values(row).some(v => v));
