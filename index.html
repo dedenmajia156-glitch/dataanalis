@@ -329,8 +329,14 @@ tbody tr:hover { background: var(--surface2); }
 .kat-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
 
 .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-content: start; }
-#page-riwayat, #historyList { width: 100%; }
-.history-grid { margin-top: 0; }
+#historyList { width: 100%; }
+#page-riwayat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 28px;
+  width: 100%;
+}
 .history-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 18px 20px;
@@ -637,16 +643,17 @@ tbody tr:hover { background: var(--surface2); }
       </div><!-- end dashboard -->
     </div><!-- end page-analisis -->
 
-    <!-- ═══ PAGE: RIWAYAT ═══ -->
-    <div id="page-riwayat" style="display:none">
-      <div style="margin-bottom:20px">
-        <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px">🕘 Riwayat Upload</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:4px">Semua batch yang pernah di-upload — klik untuk lihat analisis</div>
-      </div>
-      <div id="historyList"></div>
-    </div>
-
   </div><!-- end content -->
+
+  <!-- ═══ PAGE: RIWAYAT ═══ (di luar .content, langsung child .main) -->
+  <div id="page-riwayat" style="display:none">
+    <div style="margin-bottom:20px">
+      <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px">🕘 Riwayat Upload</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px">Semua batch yang pernah di-upload — klik untuk lihat analisis</div>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
 </div><!-- end main -->
 
 <div id="toast"></div>
@@ -784,17 +791,23 @@ function goPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('nav-' + name).classList.add('active');
 
-  // Tampilkan page yang dipilih
+  const mainContent = document.querySelector('.content');
+
   if (name === 'riwayat') {
+    // Riwayat: hide .content, show #page-riwayat (child langsung .main)
+    mainContent.style.display = 'none';
     document.getElementById('page-riwayat').style.display = 'block';
+    document.getElementById('page-riwayat').scrollTop = 0;
   } else {
+    // Upload / Analisis: show .content, aktifkan page yg sesuai
+    mainContent.style.display = '';
     document.getElementById('page-' + name).classList.add('active');
+    document.querySelector('.main').scrollTop = 0;
   }
 
   const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan', riwayat: 'Riwayat Upload' };
   document.getElementById('topbarTitle').textContent = titles[name] || name;
   document.getElementById('btnRefreshHistory').style.display = name === 'riwayat' ? 'block' : 'none';
-  document.querySelector('.main').scrollTop = 0;
   if (name === 'riwayat') loadHistory();
 }
 
@@ -830,7 +843,7 @@ async function loadHistory() {
           <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}')">🗑</button>
         </div>
       </div>`).join('')}</div>`;
-    document.querySelector('.main').scrollTop = 0;
+    document.getElementById('page-riwayat').scrollTop = 0;
   } catch(err) {
     el.innerHTML = `<div style="color:var(--red);padding:20px;font-size:13px">✗ ${err.message}</div>`;
   }
