@@ -651,14 +651,29 @@ let sbClient = null;
 async function initSupabase() {
   try {
     const res = await fetch('/api/config');
-    const { supabaseUrl, supabaseKey } = await res.json();
+    const { supabaseUrl, supabaseKey, aiEnabled: ai } = await res.json();
     if (supabaseUrl && supabaseKey) {
-      sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+      sbClient  = window.supabase.createClient(supabaseUrl, supabaseKey);
+      aiEnabled = !!ai;
       await loadSKU();
+      await autoLoadLastBatch();
     }
   } catch(e) { /* offline mode */ }
 }
 initSupabase();
+
+async function autoLoadLastBatch() {
+  if (!sbClient) return;
+  try {
+    const { data } = await sbClient
+      .from('keluhan_uploads')
+      .select('id, batch_name, total_rows')
+      .order('uploaded_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (data) await loadBatch(data.id, data.batch_name);
+  } catch(e) { /* belum ada data */ }
+}
 
 // ─────────────────────────────────────────────
 // SKU CACHE
