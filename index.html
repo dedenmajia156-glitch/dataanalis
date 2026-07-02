@@ -639,6 +639,10 @@ tbody tr:hover { background: var(--surface2); }
 
     <!-- ═══ PAGE: RIWAYAT ═══ -->
     <div id="page-riwayat" style="display:none">
+      <div style="margin-bottom:20px">
+        <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px">🕘 Riwayat Upload</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">Semua batch yang pernah di-upload — klik untuk lihat analisis</div>
+      </div>
       <div id="historyList"></div>
     </div>
 
@@ -826,6 +830,7 @@ async function loadHistory() {
           <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}')">🗑</button>
         </div>
       </div>`).join('')}</div>`;
+    document.querySelector('.main').scrollTop = 0;
   } catch(err) {
     el.innerHTML = `<div style="color:var(--red);padding:20px;font-size:13px">✗ ${err.message}</div>`;
   }
