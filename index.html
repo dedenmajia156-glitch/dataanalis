@@ -139,6 +139,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
   padding: 60px 24px;
   text-align: center;
   cursor: pointer;
+  display: block;
   transition: all 0.2s;
   background: var(--surface2);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
@@ -371,12 +372,12 @@ tbody tr:hover { background: var(--surface2); }
               <span class="card-title">File Excel / CSV</span>
             </div>
             <div class="card-body">
-              <div class="drop-zone" id="dropZone">
+              <label class="drop-zone" id="dropZone" for="fileInput">
                 <div class="dz-icon">📑</div>
                 <div class="dz-title">Drop file di sini</div>
                 <div class="dz-sub">atau klik untuk pilih file</div>
                 <div class="dz-fmt">.xlsx · .xls · .csv</div>
-              </div>
+              </label>
               <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none"/>
               <div class="drop-status" id="dropStatus"></div>
 
@@ -632,13 +633,14 @@ if (localStorage.getItem('theme') === 'light') {
 const dzEl      = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 
-dzEl.addEventListener('click', () => fileInput.click());
+// drag & drop
 dzEl.addEventListener('dragover', e => { e.preventDefault(); dzEl.classList.add('drag-over'); });
 dzEl.addEventListener('dragleave', () => dzEl.classList.remove('drag-over'));
 dzEl.addEventListener('drop', e => {
   e.preventDefault(); dzEl.classList.remove('drag-over');
   if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
 });
+// klik via <label for="fileInput"> — native browser, tidak perlu .click()
 fileInput.addEventListener('change', e => {
   if (e.target.files[0]) processFile(e.target.files[0]);
 });
