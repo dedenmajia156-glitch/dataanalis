@@ -8,6 +8,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root {
   --bg: #0d0f1a;
@@ -111,7 +113,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 }
 .btn-icon:hover { color: var(--text); border-color: var(--accent); }
 
-.content { padding: 28px; flex: 1; }
+.content { padding: 28px; flex: 1; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
+.page { width: 100%; }
 
 /* ── PAGE ── */
 .page { display: none; }
@@ -320,7 +323,9 @@ tbody tr:hover { background: var(--surface2); }
 .ai-detail-wrap table thead th { background: var(--surface2); }
 .kat-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
 
-.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-content: start; }
+#page-riwayat { display: flex; flex-direction: column; }
+#historyList { width: 100%; }
 .history-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 18px 20px;
@@ -575,7 +580,10 @@ tbody tr:hover { background: var(--surface2); }
         <div class="card" style="margin-bottom:20px" id="aiSection">
           <div class="card-header">
             <span class="card-title">🤖 Analisis AI — Kategori, Gejala & Penyakit</span>
-            <button class="btn btn-primary" id="btnAI" onclick="runAIAnalysis()" style="font-size:12px">✨ Jalankan Analisis AI</button>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-outline" id="btnAI" onclick="runAIAnalysis()" style="font-size:12px">↺ Refresh</button>
+              <button class="btn btn-primary" id="btnPDF" onclick="downloadAIPDF()" style="font-size:12px" disabled>📄 Download PDF</button>
+            </div>
           </div>
           <div id="aiResult">
             <div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">
@@ -848,6 +856,7 @@ async function loadBatch(batchId, batchName) {
 
     goPage('analisis');
     toast('✅ ' + processedData.length.toLocaleString() + ' baris dimuat dari ' + batchName);
+    if (aiEnabled) runAIAnalysis();
   } catch(err) {
     toast('✗ ' + err.message, 'err');
   }
@@ -1079,6 +1088,7 @@ function analyzeData() {
 
   goPage('analisis');
   toast('✅ Analisis selesai! ' + processedData.length + ' baris diproses.');
+  if (aiEnabled) runAIAnalysis();
 }
 
 // ─────────────────────────────────────────────
@@ -1421,7 +1431,8 @@ async function runAIAnalysis() {
     });
 
     renderAIResult(wk);
-    btn.textContent = '✨ Refresh Analisis AI';
+    btn.textContent = '↺ Refresh';
+    document.getElementById('btnPDF').disabled = false;
   } catch(err) {
     res.innerHTML = `<div style="padding:20px;color:var(--red);font-size:13px">✗ ${err.message}</div>`;
     toast('✗ AI error: ' + err.message, 'err');
@@ -1487,6 +1498,123 @@ function renderAIResult(data) {
         </table>
       </div>
     </div>`;
+}
+
+// ─────────────────────────────────────────────
+// DOWNLOAD PDF
+// ─────────────────────────────────────────────
+function downloadAIPDF() {
+  if (!Object.keys(aiResultMap).length) { toast('⚠️ Jalankan analisis AI dulu', 'warn'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const batchName = document.getElementById('sb-file').textContent || 'Keluhan';
+  const now = new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' });
+
+  // ── HEADER ──
+  doc.setFillColor(124, 111, 247);
+  doc.rect(0, 0, 297, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Laporan Analisis Keluhan — Adsy', 14, 12);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(batchName + '  |  ' + now, 297 - 14, 12, { align: 'right' });
+
+  // ── SUMMARY KATEGORI ──
+  const wk = currentFilter.filter(r => r.keluhan.trim());
+  const katCount = {};
+  wk.forEach(r => {
+    const ai  = aiResultMap[normK(r.keluhan)];
+    const kat = ai?.kategori || 'Lainnya';
+    katCount[kat] = (katCount[kat] || 0) + 1;
+  });
+  const sortedKat = Object.entries(katCount).sort((a,b) => b[1]-a[1]);
+
+  doc.setTextColor(30, 30, 50);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Ringkasan Kategori', 14, 27);
+
+  // Summary table kategori
+  doc.autoTable({
+    startY: 30,
+    head: [['Kategori', 'Jumlah Keluhan', '%']],
+    body: sortedKat.map(([kat, cnt]) => [
+      kat,
+      cnt.toString(),
+      Math.round(cnt / wk.length * 100) + '%'
+    ]),
+    theme: 'grid',
+    headStyles: { fillColor: [124, 111, 247], textColor: 255, fontSize: 9, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 9 },
+    alternateRowStyles: { fillColor: [245, 245, 255] },
+    columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
+    margin: { left: 14, right: 14 },
+    tableWidth: 100,
+  });
+
+  // ── DETAIL TABLE ──
+  const detailY = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Detail Keluhan — Kategori, Gejala & Kemungkinan Penyakit', 14, detailY);
+
+  const uniqueRows = [...new Set(wk.map(r => normK(r.keluhan)))]
+    .map(k => ({ keluhan: k, cnt: wk.filter(r => normK(r.keluhan) === k).length, ai: aiResultMap[k] }))
+    .filter(r => r.ai)
+    .sort((a, b) => b.cnt - a.cnt);
+
+  doc.autoTable({
+    startY: detailY + 3,
+    head: [['#', 'Keluhan', 'Kategori', 'Gejala Utama', 'Kemungkinan Penyakit', 'Jml']],
+    body: uniqueRows.map((r, i) => [
+      i + 1,
+      r.keluhan,
+      r.ai.kategori,
+      r.ai.gejala,
+      r.ai.penyakit,
+      r.cnt,
+    ]),
+    theme: 'striped',
+    headStyles: { fillColor: [30, 30, 50], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 8 },
+    alternateRowStyles: { fillColor: [248, 248, 255] },
+    columnStyles: {
+      0: { cellWidth: 8,  halign: 'center' },
+      1: { cellWidth: 60 },
+      2: { cellWidth: 38 },
+      3: { cellWidth: 45 },
+      4: { cellWidth: 95 },
+      5: { cellWidth: 12, halign: 'center' },
+    },
+    margin: { left: 14, right: 14 },
+    didParseCell(data) {
+      if (data.column.index === 2 && data.section === 'body') {
+        const col = katColor(data.cell.text[0]);
+        const rgb = hexToRgb(col);
+        if (rgb) data.cell.styles.textColor = rgb;
+      }
+    }
+  });
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text(`Halaman ${i} dari ${pageCount}  —  Generated by Keluhan Analyzer Adsy`, 297 / 2, 205, { align: 'center' });
+  }
+
+  doc.save(`Analisis-Keluhan-${batchName}-${now}.pdf`);
+  toast('✅ PDF berhasil didownload!');
+}
+
+function hexToRgb(hex) {
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r ? [parseInt(r[1],16), parseInt(r[2],16), parseInt(r[3],16)] : null;
 }
 
 // ─────────────────────────────────────────────
