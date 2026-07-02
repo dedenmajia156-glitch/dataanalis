@@ -339,10 +339,15 @@ tbody tr:hover { background: var(--surface2); }
   </nav>
 
   <div class="sidebar-bottom">
-    <div class="data-badge">
+    <div class="data-badge" style="margin-bottom:8px">
       <span style="font-size:11px;color:var(--muted)">Data dimuat</span>
       <strong id="sb-count">—</strong>
       <span style="font-size:11px;color:var(--muted)" id="sb-file">Belum ada file</span>
+    </div>
+    <div class="data-badge" style="cursor:pointer" onclick="loadSKU().then(()=>toast('✅ SKU di-refresh!'))" title="Klik untuk refresh SKU">
+      <span style="font-size:11px;color:var(--muted)">🏷 SKU Produk</span>
+      <strong id="sb-sku" style="font-size:13px">—</strong>
+      <span style="font-size:11px;color:var(--muted)">klik untuk refresh</span>
     </div>
   </div>
 </aside>
@@ -579,16 +584,54 @@ tbody tr:hover { background: var(--surface2); }
 // SUPABASE INIT
 // ─────────────────────────────────────────────
 let sbClient = null;
+
 async function initSupabase() {
   try {
     const res = await fetch('/api/config');
     const { supabaseUrl, supabaseKey } = await res.json();
     if (supabaseUrl && supabaseKey) {
       sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+      await loadSKU();
     }
   } catch(e) { /* offline mode */ }
 }
 initSupabase();
+
+// ─────────────────────────────────────────────
+// SKU CACHE
+// ─────────────────────────────────────────────
+let skuMap = {}; // { 'KOI': 'Produk Koi', 'HBP': 'Herbapil', ... }
+
+async function loadSKU() {
+  if (!sbClient) return;
+  try {
+    const { data } = await sbClient.from('sku_produk').select('kode,nama_produk');
+    if (data) {
+      skuMap = {};
+      data.forEach(s => { skuMap[s.kode.toUpperCase()] = s.nama_produk; });
+      // update badge di sidebar
+      document.getElementById('sb-sku').textContent = Object.keys(skuMap).length + ' SKU dimuat';
+    }
+  } catch(e) { console.warn('SKU load gagal:', e.message); }
+}
+
+function resolveProduk(raw) {
+  if (!raw) return '';
+  // Coba exact match dulu
+  const upper = raw.trim().toUpperCase();
+  if (skuMap[upper]) return skuMap[upper];
+  // Coba cari kode SKU di dalam string (misal "KOI 2", "HERBAPIL 1 pcs")
+  for (const kode of Object.keys(skuMap)) {
+    if (upper.startsWith(kode)) return skuMap[kode];
+  }
+  // Format "Nama Customer|SKU QTY"
+  if (raw.includes('|')) {
+    const skuPart = raw.split('|')[1]?.trim().toUpperCase() || '';
+    const match   = skuPart.match(/^([A-Z]+)/);
+    if (match && skuMap[match[1]]) return skuMap[match[1]];
+  }
+  return raw; // fallback: pakai raw
+}
 
 // ─────────────────────────────────────────────
 // STATE
@@ -801,7 +844,7 @@ function analyzeData() {
   processedData = rawData.map(row => ({
     tanggal: normDate(getAny(row,'Tanggal','tanggal','Tgl','tgl','Date')),
     nama   : getAny(row,'Nama','nama','NamaCustomer','name'),
-    produk : getCol(row, cp) || getAny(row,'Produk','produk','GOODS_DESC'),
+    produk : resolveProduk(getCol(row, cp) || getAny(row,'Produk','produk','GOODS_DESC')),
     keluhan: getCol(row, ck),
     team   : getAny(row,'TEAM','Team','team'),
     cs     : getAny(row,'CS','CSA','csa','cs'),
