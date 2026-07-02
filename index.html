@@ -375,6 +375,7 @@ tbody tr:hover { background: var(--surface2); }
   <div class="topbar">
     <div class="topbar-title" id="topbarTitle">Upload Data</div>
     <div class="topbar-right">
+      <button class="btn-icon" id="btnRefreshHistory" onclick="loadHistory()" style="display:none">↺ Refresh</button>
       <button class="btn-icon" onclick="toggleTheme()" id="themeBtn">☀️ Light</button>
       <button class="btn-icon" onclick="clearData()">🗑 Reset</button>
     </div>
@@ -604,10 +605,6 @@ tbody tr:hover { background: var(--surface2); }
 
     <!-- ═══ PAGE: RIWAYAT ═══ -->
     <div class="page" id="page-riwayat">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-        <div style="font-size:16px;font-weight:700">Riwayat Upload</div>
-        <button class="btn btn-outline" onclick="loadHistory()" style="font-size:12px">↺ Refresh</button>
-      </div>
       <div id="historyList">
         <div class="empty-state">
           <div class="e-icon">🕘</div>
@@ -750,6 +747,7 @@ function goPage(name) {
   document.getElementById('nav-' + name).classList.add('active');
   const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan', riwayat: 'Riwayat Upload' };
   document.getElementById('topbarTitle').textContent = titles[name] || name;
+  document.getElementById('btnRefreshHistory').style.display = name === 'riwayat' ? 'block' : 'none';
   if (name === 'riwayat') loadHistory();
 }
 
