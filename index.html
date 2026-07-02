@@ -50,12 +50,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  height: 100%;
-  flex-shrink: 0;
-  overflow-y: auto;
-  position: sticky;
-  top: 0;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
   z-index: 200;
+  overflow-y: auto;
 }
 .sidebar-brand {
   padding: 22px 20px 18px;
@@ -99,8 +97,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 .topbar {
   background: var(--surface);
@@ -108,7 +105,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
   padding: 0 28px;
   height: 56px;
   display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 100;
+  flex-shrink: 0;
+  z-index: 100;
 }
 .topbar-title { font-size: 15px; font-weight: 700; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -119,7 +117,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 }
 .btn-icon:hover { color: var(--text); border-color: var(--accent); }
 
-.content { padding: 28px; flex: 1; }
+.content { padding: 28px; flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; }
 .page { width: 100%; display: none; }
 .page.active { display: block; }
 
@@ -349,7 +347,7 @@ tbody tr:hover { background: var(--surface2); }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .charts-grid { grid-template-columns: 1fr; }
   .upload-layout { grid-template-columns: 1fr; }
-  .sidebar { transform: translateX(-100%); }
+  .sidebar { transform: translateX(-100%); overflow: hidden; }
   .main { margin-left: 0; }
 }
 </style>
@@ -792,7 +790,7 @@ function goPage(name) {
   const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan', riwayat: 'Riwayat Upload' };
   document.getElementById('topbarTitle').textContent = titles[name] || name;
   document.getElementById('btnRefreshHistory').style.display = name === 'riwayat' ? 'block' : 'none';
-  document.querySelector('.main').scrollTop = 0;
+  document.querySelector('.content').scrollTop = 0;
   if (name === 'riwayat') loadHistory();
 }
 
@@ -1214,7 +1212,7 @@ function renderCharts(data) {
           datalabels: { anchor:'end', align:'end', color: txtColor(), font:{size:11,weight:'bold'} }
         },
         scales: {
-          x: { ticks:{color:txtColor(),font:{size:11}}, grid:{color:gridColor()} },
+          x: { ticks:{color:txtColor(),font:{size:11},callback:(v)=>Number.isInteger(v)?v:null}, grid:{color:gridColor()}, beginAtZero:true, suggestedMax:2 },
           y: { ticks:{color:txtColor(),font:{size:11}}, grid:{display:false} }
         }
       },
@@ -1680,7 +1678,6 @@ function clearData() {
   document.getElementById('dropStatus').className = 'drop-status';
   document.getElementById('previewSection').style.display = 'none';
   document.getElementById('btnAnalyze').disabled = true;
-  document.getElementById('btnSave').disabled    = true;
   document.getElementById('sb-count').textContent = '—';
   document.getElementById('sb-file').textContent  = 'Belum ada file';
   document.getElementById('dashboard').style.display     = 'none';
