@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Analisis Keluhan — Adsy</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2e3250;
+  --accent: #6c63ff;
+  --accent2: #00d2ff;
+  --green: #22c55e;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --orange: #f97316;
+  --text: #e8eaf6;
+  --muted: #8892b0;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+body.light {
+  --bg: #f0f2f8;
+  --surface: #ffffff;
+  --surface2: #f5f6fa;
+  --border: #dde1f0;
+  --text: #1a1d27;
+  --muted: #5a6080;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+
+/* NAV */
+nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.nav-brand { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.nav-brand span { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.theme-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.theme-btn:hover { background: var(--border); }
+
+/* LAYOUT */
+.wrapper { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
+
+/* UPLOAD SECTION */
+.upload-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 28px;
+}
+.upload-card h2 { font-size: 15px; font-weight: 600; margin-bottom: 18px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.drop-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface2);
+}
+.drop-area:hover, .drop-area.drag-over { border-color: var(--accent); background: rgba(108,99,255,0.08); }
+.drop-area .icon { font-size: 32px; margin-bottom: 10px; }
+.drop-area p { font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+.drop-area small { font-size: 12px; color: var(--muted); }
+.drop-area input { display: none; }
+.drop-status { display: none; margin-top: 10px; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+.drop-status.ok { background: rgba(34,197,94,0.12); color: var(--green); display: block; }
+.drop-status.err { background: rgba(239,68,68,0.12); color: var(--red); display: block; }
+.drop-status.loading { background: rgba(108,99,255,0.12); color: var(--accent); display: block; }
+
+.upload-settings { display: flex; flex-direction: column; gap: 14px; }
+.field-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.field-group input, .field-group select {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 13px;
+}
+.field-group input:focus, .field-group select:focus { outline: none; border-color: var(--accent); }
+
+.btn { padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: 0.88; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* STATS */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.stat-card.c1::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.stat-card.c2::before { background: linear-gradient(90deg, var(--green), #34d399); }
+.stat-card.c3::before { background: linear-gradient(90deg, var(--yellow), #fbbf24); }
+.stat-card.c4::before { background: linear-gradient(90deg, var(--orange), var(--red)); }
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.stat-value { font-size: 32px; font-weight: 700; line-height: 1; }
+.stat-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* FILTER BAR */
+.filter-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.filter-bar .field-group { min-width: 160px; flex: 1; }
+.filter-bar .field-group label { font-size: 11px; }
+
+/* CHARTS */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+}
+.chart-card.full { grid-column: 1 / -1; }
+.chart-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 18px; }
+.chart-wrap { position: relative; }
+
+/* TABLE */
+.table-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.table-header { padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.table-header h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th { padding: 10px 14px; text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap; }
+tbody td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--surface2); }
+.badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-purple { background: rgba(108,99,255,0.15); color: var(--accent); }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(0,210,255,0.15); color: var(--accent2); }
+
+/* TOP KELUHAN TABLE */
+.rank-table { width: 100%; }
+.rank-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.rank-row:last-child { border-bottom: none; }
+.rank-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.rank-1 { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #000; }
+.rank-2 { background: linear-gradient(135deg, #9ca3af, #d1d5db); color: #000; }
+.rank-3 { background: linear-gradient(135deg, #b45309, #d97706); color: #fff; }
+.rank-other { background: var(--surface2); color: var(--muted); }
+.rank-text { flex: 1; font-size: 13px; }
+.rank-produk { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.rank-bar-wrap { width: 140px; }
+.rank-bar-bg { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; }
+.rank-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.rank-count { font-size: 13px; font-weight: 700; color: var(--text); width: 36px; text-align: right; }
+
+/* EMPTY STATE */
+.empty { text-align: center; padding: 80px 24px; color: var(--muted); }
+.empty .icon { font-size: 56px; margin-bottom: 16px; }
+.empty h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+.empty p { font-size: 14px; }
+
+/* PAGINATION */
+.pagination { display: flex; gap: 6px; align-items: center; padding: 14px 22px; border-top: 1px solid var(--border); }
+.page-btn { padding: 5px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--surface2); color: var(--text); }
+.page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.page-btn:hover:not(.active) { border-color: var(--accent); }
+.page-info { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+/* TOAST */
+#toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; font-size: 13px; display: none; z-index: 9999; box-shadow: var(--shadow); }
+#toast.show { display: flex; align-items: center; gap: 10px; }
+
+/* LOADING */
+.spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* SECTION TITLE */
+.section-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+.section-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+/* HISTORY */
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s; }
+.history-item:hover { border-color: var(--accent); }
+.history-item .h-name { font-size: 13px; font-weight: 600; }
+.history-item .h-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+@media (max-width: 768px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .upload-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    📊 <span>Analisis Keluhan</span> <span style="color:var(--muted);font-weight:400;font-size:13px">by Adsy</span>
+  </div>
+  <div class="nav-right">
+    <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">☀️ Light</button>
+  </div>
+</nav>
+
+<div class="wrapper">
+
+  <!-- UPLOAD SECTION -->
+  <div class="upload-card">
+    <h2>📂 Upload Data Closing</h2>
+    <div class="upload-grid">
+      <div>
+        <div class="drop-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <div class="icon">📑</div>
+          <p>Drop file Excel di sini atau klik untuk pilih</p>
+          <small>Format: .xlsx / .xls / .csv</small>
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv"/>
+        </div>
+        <div id="drop-status" class="drop-status"></div>
+      </div>
+      <div class="upload-settings">
+        <div class="field-group">
+          <label>Nama Batch / Periode</label>
+          <input type="text" id="batchName" placeholder="Cth: Closing Juni 2026"/>
+        </div>
+        <div class="field-group">
+          <label>Kolom Produk di Excel</label>
+          <input type="text" id="colProduk" value="Jumlah Pesanan" placeholder="Nama kolom produk"/>
+        </div>
+        <div class="field-group">
+          <label>Kolom Keluhan di Excel</label>
+          <input type="text" id="colKeluhan" value="Keluhan" placeholder="Nama kolom keluhan"/>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="btnAnalyze" onclick="analyzeData()" disabled>🔍 Analisis</button>
+          <button class="btn btn-outline" id="btnSave" onclick="saveToSupabase()" disabled>💾 Simpan ke DB</button>
+          <button class="btn btn-outline" onclick="clearData()">🗑️ Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPTY STATE -->
+  <div class="empty" id="emptyState">
+    <div class="icon">📊</div>
+    <h3>Belum ada data</h3>
+    <p>Upload file Excel closing di atas untuk mulai analisis keluhan</p>
+  </div>
+
+  <!-- DASHBOARD (hidden until data loaded) -->
+  <div id="dashboard" style="display:none">
+
+    <!-- STATS -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card c1">
+        <div class="stat-label">Total Data</div>
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-sub">baris closing</div>
+      </div>
+      <div class="stat-card c2">
+        <div class="stat-label">Produk Unik</div>
+        <div class="stat-value" id="statProduk">0</div>
+        <div class="stat-sub">jenis produk</div>
+      </div>
+      <div class="stat-card c3">
+        <div class="stat-label">Total Keluhan</div>
+        <div class="stat-value" id="statKeluhan">0</div>
+        <div class="stat-sub">baris ada keluhan</div>
+      </div>
+      <div class="stat-card c4">
+        <div class="stat-label">Jenis Keluhan</div>
+        <div class="stat-value" id="statJenisKeluhan">0</div>
+        <div class="stat-sub">keluhan unik</div>
+      </div>
+    </div>
+
+    <!-- FILTER -->
+    <div class="filter-bar">
+      <div class="field-group">
+        <label>Filter Produk</label>
+        <select id="filterProduk" onchange="applyFilters()">
+          <option value="">Semua Produk</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Filter Team</label>
+        <select id="filterTeam" onchange="applyFilters()">
+          <option value="">Semua Team</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Filter CS</label>
+        <select id="filterCS" onchange="applyFilters()">
+          <option value="">Semua CS</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Dari Tanggal</label>
+        <input type="date" id="filterDateFrom" onchange="applyFilters()"/>
+      </div>
+      <div class="field-group">
+        <label>Sampai Tanggal</label>
+        <input type="date" id="filterDateTo" onchange="applyFilters()"/>
+      </div>
+      <button class="btn btn-outline" onclick="resetFilters()">Reset</button>
+    </div>
+
+    <!-- CHARTS ROW 1 -->
+    <div class="charts-grid">
+      <div class="chart-card full">
+        <div class="chart-title">🏆 Top 15 Keluhan Terbanyak</div>
+        <div class="chart-wrap" style="height:340px">
+          <canvas id="chartTopKeluhan"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 2 -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">📦 Distribusi Keluhan per Produk</div>
+        <div class="chart-wrap" style="height:300px">
+          <canvas id="chartProdukPie"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📋 Ranking Keluhan</div>
+        <div id="rankList" style="overflow-y:auto;max-height:300px;"></div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 3 — per produk -->
+    <div class="charts-grid" id="perProdukSection">
+      <div class="chart-card full">
+        <div class="chart-title">🔬 Keluhan per Produk (Stacked)</div>
+        <div class="chart-wrap" style="height:380px">
+          <canvas id="chartStacked"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- DETAIL TABLE -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3>📋 Detail Data Keluhan</h3>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="searchKeluhan" placeholder="Cari keluhan..." style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:8px;font-size:12px;width:200px" oninput="applyFilters()"/>
+          <button class="btn btn-outline" onclick="exportCSV()" style="font-size:12px">⬇️ Export</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Tanggal</th>
+              <th>Nama</th>
+              <th>Produk</th>
+              <th>Keluhan</th>
+              <th>Team</th>
+              <th>CS</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="paginationWrap"></div>
+    </div>
+
+  </div><!-- end dashboard -->
+
+</div><!-- end wrapper -->
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG SUPABASE ─────────────────────────────────────────────
+const SUPA_URL  = 'YOUR_SUPABASE_URL';
+const SUPA_KEY  = 'YOUR_SUPABASE_ANON_KEY';
+let supabase    = null;
+if (SUPA_URL !== 'YOUR_SUPABASE_URL') {
+  supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+}
+
+// ── STATE ───────────────────────────────────────────────────────
+let rawData      = [];
+let filteredData = [];
+let currentPage  = 1;
+const PAGE_SIZE  = 50;
+let chartInstances = {};
+
+// ── THEME ───────────────────────────────────────────────────────
+function toggleTheme() {
+  document.body.classList.toggle('light');
+  document.getElementById('themeBtn').textContent =
+    document.body.classList.contains('light') ? '🌙 Dark' : '☀️ Light';
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  if (filteredData.length) renderCharts(filteredData);
+}
+if (localStorage.getItem('theme') === 'light') {
+  document.body.classList.add('light');
+  document.getElementById('themeBtn').textContent = '🌙 Dark';
+}
+
+// ── DROPZONE ────────────────────────────────────────────────────
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) processFile(f);
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) processFile(e.target.files[0]);
+});
+
+function setStatus(type, msg) {
+  const el = document.getElementById('drop-status');
+  el.className = 'drop-status ' + type;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function processFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  setStatus('loading', `⏳ Membaca ${file.name}...`);
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let data;
+      if (ext === 'csv') {
+        data = csvToArray(e.target.result);
+      } else {
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      }
+      if (!data.length) throw new Error('File kosong.');
+      rawData = data;
+      setStatus('ok', `✓ ${data.length.toLocaleString()} baris dimuat dari ${file.name}`);
+      document.getElementById('btnAnalyze').disabled = false;
+      document.getElementById('btnSave').disabled = false;
+      if (!document.getElementById('batchName').value) {
+        document.getElementById('batchName').value = file.name.replace(/\.[^.]+$/, '');
+      }
+    } catch(err) {
+      setStatus('err', `✗ ${err.message}`);
+    }
+  };
+  reader.onerror = () => setStatus('err', '✗ Gagal membaca file.');
+  if (ext === 'csv') reader.readAsText(file, 'UTF-8');
+  else reader.readAsArrayBuffer(file);
+}
+
+// ── CSV PARSER ──────────────────────────────────────────────────
+function csvToArray(str) {
+  const lines = str.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',');
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = (vals[i]||'').replace(/^"|"$/g,'').trim(); });
+    return obj;
+  }).filter(row => Object.values(row).some(v => v));
+}
+
+// ── COLUMN HELPER ───────────────────────────────────────────────
+function getColVal(row, colName) {
+  if (!colName) return '';
+  const key = Object.keys(row).find(k =>
+    k.trim().toLowerCase() === colName.trim().toLowerCase()
+  );
+  if (!key) return '';
+  const val = row[key];
+  if (val instanceof Date) return val.toISOString().split('T')[0];
+  return String(val || '').trim();
+}
+
+function getAnyCol(row, ...candidates) {
+  for (const c of candidates) {
+    const v = getColVal(row, c);
+    if (v) return v;
+  }
+  return '';
+}
+
+// ── NORMALIZE DATE ──────────────────────────────────────────────
+function normalizeDate(val) {
+  if (!val) return '';
+  const s = String(val).trim();
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // DD/MM/YYYY
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    const y = m[3].length === 2 ? '20' + m[3] : m[3];
+    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  return s.slice(0, 10);
+}
+
+// ── ANALYZE ─────────────────────────────────────────────────────
+function analyzeData() {
+  if (!rawData.length) return;
+  const colProduk  = document.getElementById('colProduk').value  || 'Jumlah Pesanan';
+  const colKeluhan = document.getElementById('colKeluhan').value || 'Keluhan';
+
+  filteredData = rawData.map(row => ({
+    tanggal : normalizeDate(getAnyCol(row, 'Tanggal', 'tanggal', 'Tgl', 'tgl', 'Date')),
+    nama    : getAnyCol(row, 'Nama', 'nama', 'NamaCustomer', 'name'),
+    produk  : getColVal(row, colProduk)  || getAnyCol(row, 'Produk', 'produk', 'GOODS_DESC'),
+    keluhan : getColVal(row, colKeluhan) || '',
+    team    : getAnyCol(row, 'TEAM', 'Team', 'team'),
+    cs      : getAnyCol(row, 'CS', 'CSA', 'csa', 'cs'),
+    status  : getAnyCol(row, 'Status Akhir', 'StatusAkhir', 'Status', 'status'),
+    _raw    : row,
+  })).filter(r => r.produk || r.keluhan);
+
+  populateFilters(filteredData);
+  renderAll(filteredData);
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  toast('✅ Analisis selesai! ' + filteredData.length + ' baris diproses.');
+}
+
+// ── POPULATE FILTERS ────────────────────────────────────────────
+function populateFilters(data) {
+  const produkSet = [...new Set(data.map(r => r.produk).filter(Boolean))].sort();
+  const teamSet   = [...new Set(data.map(r => r.team).filter(Boolean))].sort();
+  const csSet     = [...new Set(data.map(r => r.cs).filter(Boolean))].sort();
+
+  const fp = document.getElementById('filterProduk');
+  fp.innerHTML = '<option value="">Semua Produk</option>' + produkSet.map(p => `<option value="${p}">${p}</option>`).join('');
+  const ft = document.getElementById('filterTeam');
+  ft.innerHTML = '<option value="">Semua Team</option>' + teamSet.map(t => `<option value="${t}">${t}</option>`).join('');
+  const fc = document.getElementById('filterCS');
+  fc.innerHTML = '<option value="">Semua CS</option>' + csSet.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+// ── APPLY FILTERS ───────────────────────────────────────────────
+function applyFilters() {
+  const fp    = document.getElementById('filterProduk').value;
+  const ft    = document.getElementById('filterTeam').value;
+  const fc    = document.getElementById('filterCS').value;
+  const dfrom = document.getElementById('filterDateFrom').value;
+  const dto   = document.getElementById('filterDateTo').value;
+  const search= document.getElementById('searchKeluhan').value.toLowerCase();
+
+  const result = filteredData.filter(r => {
+    if (fp && r.produk !== fp) return false;
+    if (ft && r.team  !== ft) return false;
+    if (fc && r.cs    !== fc) return false;
+    if (dfrom && r.tanggal && r.tanggal < dfrom) return false;
+    if (dto   && r.tanggal && r.tanggal > dto)   return false;
+    if (search && !r.keluhan.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  currentPage = 1;
+  renderAll(result);
+}
+
+function resetFilters() {
+  document.getElementById('filterProduk').value = '';
+  document.getElementById('filterTeam').value = '';
+  document.getElementById('filterCS').value = '';
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value = '';
+  document.getElementById('searchKeluhan').value = '';
+  currentPage = 1;
+  renderAll(filteredData);
+}
+
+// ── RENDER ALL ──────────────────────────────────────────────────
+function renderAll(data) {
+  updateStats(data);
+  renderCharts(data);
+  renderTable(data, currentPage);
+  renderRankList(data);
+}
+
+// ── STATS ────────────────────────────────────────────────────────
+function updateStats(data) {
+  const withKeluhan = data.filter(r => r.keluhan.trim());
+  const produkSet   = new Set(data.map(r => r.produk).filter(Boolean));
+  const keluhanSet  = new Set(withKeluhan.map(r => normalizeKeluhan(r.keluhan)).filter(Boolean));
+  document.getElementById('statTotal').textContent   = data.length.toLocaleString();
+  document.getElementById('statProduk').textContent  = produkSet.size;
+  document.getElementById('statKeluhan').textContent = withKeluhan.length.toLocaleString();
+  document.getElementById('statJenisKeluhan').textContent = keluhanSet.size;
+}
+
+// ── NORMALIZE KELUHAN TEXT ───────────────────────────────────────
+function normalizeKeluhan(s) {
+  return String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// ── COUNT MAP ────────────────────────────────────────────────────
+function countBy(arr, fn) {
+  const map = {};
+  arr.forEach(item => {
+    const k = fn(item);
+    if (k) map[k] = (map[k] || 0) + 1;
+  });
+  return map;
+}
+
+function sortedEntries(map, limit = 999) {
+  return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+// ── CHART COLORS ─────────────────────────────────────────────────
+const PALETTE = [
+  '#6c63ff','#00d2ff','#22c55e','#f59e0b','#ef4444','#f97316',
+  '#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6','#4ade80',
+  '#facc15','#e879f9','#38bdf8','#fb7185'
+];
+
+function chartTextColor() {
+  return document.body.classList.contains('light') ? '#1a1d27' : '#e8eaf6';
+}
+function chartGridColor() {
+  return document.body.classList.contains('light') ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)';
+}
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+// ── RENDER CHARTS ─────────────────────────────────────────────────
+function renderCharts(data) {
+  const withKeluhan = data.filter(r => r.keluhan.trim());
+
+  // TOP KELUHAN horizontal bar
+  destroyChart('topKeluhan');
+  const keluhanMap = countBy(withKeluhan, r => normalizeKeluhan(r.keluhan));
+  const topKeluhan = sortedEntries(keluhanMap, 15);
+  if (topKeluhan.length) {
+    const ctx = document.getElementById('chartTopKeluhan').getContext('2d');
+    chartInstances['topKeluhan'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: topKeluhan.map(([k]) => k.length > 40 ? k.slice(0,40)+'…' : k),
+        datasets: [{
+          label: 'Jumlah',
+          data: topKeluhan.map(([,v]) => v),
+          backgroundColor: topKeluhan.map((_, i) => PALETTE[i % PALETTE.length] + 'cc'),
+          borderColor: topKeluhan.map((_, i) => PALETTE[i % PALETTE.length]),
+          borderWidth: 1.5,
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          datalabels: {
+            anchor: 'end', align: 'end',
+            color: chartTextColor(), font: { size: 11, weight: 'bold' }
+          }
+        },
+        scales: {
+          x: { ticks: { color: chartTextColor(), font: { size: 11 } }, grid: { color: chartGridColor() } },
+          y: { ticks: { color: chartTextColor(), font: { size: 11 } }, grid: { display: false } }
+        }
+      },
+      plugins: [ChartDataLabels]
+    });
+  }
+
+  // DONUT per produk
+  destroyChart('produkPie');
+  const produkMap = countBy(withKeluhan, r => r.produk || 'Tidak Diketahui');
+  const produkEntries = sortedEntries(produkMap, 10);
+  if (produkEntries.length) {
+    const ctx2 = document.getElementById('chartProdukPie').getContext('2d');
+    chartInstances['produkPie'] = new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: produkEntries.map(([k]) => k),
+        datasets: [{
+          data: produkEntries.map(([,v]) => v),
+          backgroundColor: produkEntries.map((_, i) => PALETTE[i % PALETTE.length] + 'cc'),
+          borderColor: produkEntries.map((_, i) => PALETTE[i % PALETTE.length]),
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '62%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { color: chartTextColor(), font: { size: 11 }, padding: 12, boxWidth: 14 }
+          },
+          datalabels: {
+            formatter: (val, ctx) => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              return Math.round(val / total * 100) + '%';
+            },
+            color: '#fff', font: { size: 11, weight: 'bold' }
+          }
+        }
+      },
+      plugins: [ChartDataLabels]
+    });
+  }
+
+  // STACKED BAR per produk × top keluhan
+  destroyChart('stacked');
+  const produkList = sortedEntries(produkMap, 8).map(([k]) => k);
+  const topKeluhan5 = sortedEntries(keluhanMap, 8).map(([k]) => k);
+  if (produkList.length && topKeluhan5.length) {
+    const datasets = topKeluhan5.map((kel, i) => ({
+      label: kel.length > 28 ? kel.slice(0,28)+'…' : kel,
+      data: produkList.map(prod => {
+        return withKeluhan.filter(r => r.produk === prod && normalizeKeluhan(r.keluhan) === kel).length;
+      }),
+      backgroundColor: PALETTE[i % PALETTE.length] + 'cc',
+      borderColor: PALETTE[i % PALETTE.length],
+      borderWidth: 1,
+      borderRadius: 4,
+    }));
+    const ctx3 = document.getElementById('chartStacked').getContext('2d');
+    chartInstances['stacked'] = new Chart(ctx3, {
+      type: 'bar',
+      data: { labels: produkList, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: chartTextColor(), font: { size: 11 }, padding: 12 } },
+          datalabels: { display: false }
+        },
+        scales: {
+          x: { stacked: true, ticks: { color: chartTextColor() }, grid: { display: false } },
+          y: { stacked: true, ticks: { color: chartTextColor() }, grid: { color: chartGridColor() } }
+        }
+      }
+    });
+  }
+}
+
+// ── RANK LIST ───────────────────────────────────────────────────
+function renderRankList(data) {
+  const withKeluhan = data.filter(r => r.keluhan.trim());
+  const map = countBy(withKeluhan, r => normalizeKeluhan(r.keluhan));
+  const top = sortedEntries(map, 15);
+  const maxVal = top[0] ? top[0][1] : 1;
+  const el = document.getElementById('rankList');
+  el.innerHTML = top.map(([kel, cnt], i) => {
+    const pct = Math.round(cnt / maxVal * 100);
+    const cls = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+    const produkCount = [...new Set(withKeluhan.filter(r => normalizeKeluhan(r.keluhan) === kel).map(r => r.produk))].join(', ');
+    return `<div class="rank-row">
+      <div class="rank-num ${cls}">${i + 1}</div>
+      <div class="rank-text">
+        <div>${kel}</div>
+        <div class="rank-produk">${produkCount || '—'}</div>
+      </div>
+      <div class="rank-bar-wrap">
+        <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="rank-count">${cnt}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── TABLE ───────────────────────────────────────────────────────
+function renderTable(data, page) {
+  const withKeluhan = data.filter(r => r.keluhan.trim());
+  const total = withKeluhan.length;
+  const start = (page - 1) * PAGE_SIZE;
+  const rows  = withKeluhan.slice(start, start + PAGE_SIZE);
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td style="color:var(--muted)">${start + i + 1}</td>
+      <td>${r.tanggal || '—'}</td>
+      <td>${r.nama || '—'}</td>
+      <td><span class="badge badge-purple">${r.produk || '—'}</span></td>
+      <td style="max-width:280px">${r.keluhan}</td>
+      <td>${r.team || '—'}</td>
+      <td>${r.cs || '—'}</td>
+      <td>${statusBadge(r.status)}</td>
+    </tr>
+  `).join('');
+
+  // Pagination
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const pg = document.getElementById('paginationWrap');
+  pg.innerHTML = '';
+  if (totalPages > 1) {
+    const maxBtn = 7;
+    let pages = [];
+    if (totalPages <= maxBtn) {
+      pages = Array.from({length: totalPages}, (_, i) => i + 1);
+    } else {
+      pages = [1];
+      if (page > 3) pages.push('…');
+      for (let p = Math.max(2, page-1); p <= Math.min(totalPages-1, page+1); p++) pages.push(p);
+      if (page < totalPages - 2) pages.push('…');
+      pages.push(totalPages);
+    }
+    pages.forEach(p => {
+      if (p === '…') { pg.innerHTML += `<span style="color:var(--muted);padding:0 4px">…</span>`; return; }
+      pg.innerHTML += `<button class="page-btn ${p === page ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`;
+    });
+    pg.innerHTML += `<span class="page-info">${total.toLocaleString()} keluhan</span>`;
+  }
+}
+
+function goPage(p) {
+  currentPage = p;
+  const withKeluhan = getCurrentFiltered().filter(r => r.keluhan.trim());
+  renderTable(getCurrentFiltered(), p);
+}
+
+function getCurrentFiltered() {
+  // Re-apply current filter state
+  const fp    = document.getElementById('filterProduk').value;
+  const ft    = document.getElementById('filterTeam').value;
+  const fc    = document.getElementById('filterCS').value;
+  const dfrom = document.getElementById('filterDateFrom').value;
+  const dto   = document.getElementById('filterDateTo').value;
+  const search= document.getElementById('searchKeluhan').value.toLowerCase();
+  return filteredData.filter(r => {
+    if (fp && r.produk !== fp) return false;
+    if (ft && r.team  !== ft) return false;
+    if (fc && r.cs    !== fc) return false;
+    if (dfrom && r.tanggal && r.tanggal < dfrom) return false;
+    if (dto   && r.tanggal && r.tanggal > dto)   return false;
+    if (search && !r.keluhan.toLowerCase().includes(search)) return false;
+    return true;
+  });
+}
+
+function statusBadge(s) {
+  if (!s) return '—';
+  const sl = s.toLowerCase();
+  if (sl.includes('lunas') || sl.includes('success') || sl.includes('selesai')) return `<span class="badge badge-green">${s}</span>`;
+  if (sl.includes('cancel') || sl.includes('batal') || sl.includes('retur')) return `<span class="badge badge-red">${s}</span>`;
+  if (sl.includes('proses') || sl.includes('pending')) return `<span class="badge badge-yellow">${s}</span>`;
+  return `<span class="badge badge-blue">${s}</span>`;
+}
+
+// ── EXPORT CSV ──────────────────────────────────────────────────
+function exportCSV() {
+  const data = getCurrentFiltered().filter(r => r.keluhan.trim());
+  const headers = ['Tanggal','Nama','Produk','Keluhan','Team','CS','Status'];
+  const rows = data.map(r => [r.tanggal, r.nama, r.produk, r.keluhan, r.team, r.cs, r.status]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'keluhan-analisis.csv';
+  a.click(); URL.revokeObjectURL(url);
+  toast('✅ Export selesai!');
+}
+
+// ── SAVE TO SUPABASE ─────────────────────────────────────────────
+async function saveToSupabase() {
+  if (!supabase) { toast('⚠️ Supabase belum dikonfigurasi. Isi SUPA_URL dan SUPA_KEY dulu.', 'warn'); return; }
+  if (!filteredData.length) { toast('⚠️ Analisis dulu datanya ya.', 'warn'); return; }
+  const batchName = document.getElementById('batchName').value || 'Upload ' + new Date().toLocaleDateString('id-ID');
+  toast('⏳ Menyimpan ke database...');
+  try {
+    const { data: batch, error: batchErr } = await supabase
+      .from('keluhan_uploads')
+      .insert({ batch_name: batchName, total_rows: filteredData.length })
+      .select().single();
+    if (batchErr) throw batchErr;
+
+    const rows = filteredData.filter(r => r.keluhan.trim()).map(r => ({
+      batch_id    : batch.id,
+      tanggal     : r.tanggal || null,
+      nama        : r.nama    || null,
+      produk      : r.produk  || null,
+      keluhan     : r.keluhan || null,
+      team        : r.team    || null,
+      cs          : r.cs      || null,
+      status_akhir: r.status  || null,
+    }));
+
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const { error } = await supabase.from('keluhan_data').insert(rows.slice(i, i + CHUNK));
+      if (error) throw error;
+    }
+    toast('✅ Tersimpan! ' + rows.length + ' keluhan berhasil disimpan.');
+  } catch(err) {
+    toast('✗ Error: ' + err.message, 'err');
+  }
+}
+
+// ── CLEAR ───────────────────────────────────────────────────────
+function clearData() {
+  rawData = []; filteredData = [];
+  document.getElementById('drop-status').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('btnAnalyze').disabled = true;
+  document.getElementById('btnSave').disabled = true;
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'block';
+  Object.keys(chartInstances).forEach(k => { chartInstances[k].destroy(); delete chartInstances[k]; });
+  toast('🗑️ Data direset.');
+}
+
+// ── TOAST ────────────────────────────────────────────────────────
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.className = 'show';
+  el.innerHTML = (type === 'err' ? '❌' : type === 'warn' ? '⚠️' : '✅') + ' ' + msg;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 3500);
+}
+</script>
+</body>
+</html>
