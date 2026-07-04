@@ -164,7 +164,7 @@ async function loadOrderData() {
     toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' kombinasi area');
   } catch(e) {
     console.warn('loadOrderData error:', e);
-    toast('Gagal memuat data wilayah', 'err');
+    toast('Gagal memuat data wilayah: ' + errMsg(e), 'err');
   }
 }
 
@@ -346,73 +346,78 @@ async function analyzeData() {
     await saveToSupabase();
 
   } catch(err) {
-    toast('Error: ' + err.message, 'err');
+    toast('Error proses file: ' + errMsg(err), 'err');
     console.error('analyzeData error:', err);
   }
 }
 
 // ═══ SAVE TO SUPABASE ═══
 async function saveToSupabase() {
-  if (!sbClient) return;
+  if (!sbClient) { toast('Supabase belum terhubung', 'err'); return; }
   const name = document.getElementById('batchName')?.value || 'Upload ' + new Date().toLocaleDateString('id-ID');
-  toast('Menyimpan...');
+  toast('Menyimpan batch ke database...');
   try {
-    // Insert batch metadata
+    // 1. Insert batch metadata
     const { data: batch, error: e1 } = await sbClient
       .from('keluhan_uploads')
       .insert({ batch_name: name, total_rows: allMapped.length })
-      .select()
-      .single();
-    if (e1) throw e1;
+      .select().single();
+    if (e1) throw Object.assign(e1, { _step: 'Gagal simpan batch metadata' });
 
-    // Save SEMUA order ke order_data
+    // 2. Save SEMUA order ke order_data
     const orderRows = allMapped.map(r => ({
-      batch_id:          batch.id,
-      tanggal:           r.tanggal || null,
-      nama:              r.nama || null,
-      produk:            r.produk || null,
-      keluhan:           r.keluhan || null,
-      team:              r.team || null,
-      cs:                r.cs || null,
-      status_akhir:      r.status || null,
-      provinsi:          r.provinsi || null,
-      kabupaten:         r.kabupaten || null,
-      kecamatan:         r.kecamatan || null,
-      kelurahan:         r.kelurahan || null,
-      total_pembayaran:  r.total_pembayaran || null,
+      batch_id:         batch.id,
+      tanggal:          r.tanggal || null,
+      nama:             r.nama || null,
+      produk:           r.produk || null,
+      keluhan:          r.keluhan || null,
+      team:             r.team || null,
+      cs:               r.cs || null,
+      status_akhir:     r.status || null,
+      provinsi:         r.provinsi || null,
+      kabupaten:        r.kabupaten || null,
+      kecamatan:        r.kecamatan || null,
+      kelurahan:        r.kelurahan || null,
+      total_pembayaran: r.total_pembayaran || null,
     }));
 
-    for (let i = 0; i < orderRows.length; i += 500) {
+    const totalChunks = Math.ceil(orderRows.length / 500);
+    for (let i = 0, chunk = 1; i < orderRows.length; i += 500, chunk++) {
+      toast('Menyimpan order... ' + chunk + '/' + totalChunks);
       const { error } = await sbClient.from('order_data').insert(orderRows.slice(i, i + 500));
-      if (error) { console.error('order_data insert error', error); throw error; }
+      if (error) throw Object.assign(error, { _step: 'Gagal simpan order_data (chunk ' + chunk + ')' });
     }
 
-    // Save hanya keluhan ke keluhan_data
+    // 3. Save hanya keluhan ke keluhan_data
     const keluhanRows = allMapped.filter(r => r.keluhan?.trim()).map(r => ({
-      batch_id:          batch.id,
-      tanggal:           r.tanggal || null,
-      nama:              r.nama || null,
-      produk:            r.produk || null,
-      keluhan:           r.keluhan || null,
-      team:              r.team || null,
-      cs:                r.cs || null,
-      status_akhir:      r.status || null,
-      provinsi:          r.provinsi || null,
-      kabupaten:         r.kabupaten || null,
-      kecamatan:         r.kecamatan || null,
-      kelurahan:         r.kelurahan || null,
-      total_pembayaran:  r.total_pembayaran || null,
+      batch_id:         batch.id,
+      tanggal:          r.tanggal || null,
+      nama:             r.nama || null,
+      produk:           r.produk || null,
+      keluhan:          r.keluhan || null,
+      team:             r.team || null,
+      cs:               r.cs || null,
+      status_akhir:     r.status || null,
+      provinsi:         r.provinsi || null,
+      kabupaten:        r.kabupaten || null,
+      kecamatan:        r.kecamatan || null,
+      kelurahan:        r.kelurahan || null,
+      total_pembayaran: r.total_pembayaran || null,
     }));
 
-    for (let i = 0; i < keluhanRows.length; i += 500) {
+    const totalKChunks = Math.ceil(keluhanRows.length / 500);
+    for (let i = 0, chunk = 1; i < keluhanRows.length; i += 500, chunk++) {
+      toast('Menyimpan keluhan... ' + chunk + '/' + totalKChunks);
       const { error } = await sbClient.from('keluhan_data').insert(keluhanRows.slice(i, i + 500));
-      if (error) { console.error('keluhan_data insert error', error); throw error; }
+      if (error) throw Object.assign(error, { _step: 'Gagal simpan keluhan_data (chunk ' + chunk + ')' });
     }
 
-    toast('Tersimpan! ' + orderRows.length + ' order, ' + keluhanRows.length + ' keluhan. Memuat ulang...');
+    orderDataLoaded = false; // reset wilayah cache
+    toast('Tersimpan! ' + orderRows.length + ' order, ' + keluhanRows.length + ' keluhan.');
     await loadAllData();
   } catch(err) {
-    toast(err.message, 'err');
+    const step = err._step ? '[' + err._step + '] ' : '';
+    toast(step + errMsg(err), 'err');
     console.error('saveToSupabase error:', err);
   }
 }
@@ -741,7 +746,21 @@ function toast(msg, type) {
   if (type === 'err')  el.classList.add('toast-err');
   if (type === 'warn') el.classList.add('toast-warn');
   clearTimeout(el._t);
-  el._t = setTimeout(() => { el.className = 'toast'; }, 3500);
+  // error stays longer (8s), warn medium (5s), info short (3.5s)
+  const dur = type === 'err' ? 8000 : type === 'warn' ? 5000 : 3500;
+  el._t = setTimeout(() => { el.className = 'toast'; }, dur);
+}
+
+// ═══ EXTRACT ERROR MESSAGE ═══
+function errMsg(e) {
+  if (!e) return 'Unknown error';
+  // Supabase error object
+  if (e.message && e.details) return e.message + ' — ' + e.details;
+  if (e.message && e.hint)    return e.message + ' (' + e.hint + ')';
+  if (e.message)              return e.message;
+  if (e.error_description)    return e.error_description;
+  if (typeof e === 'string')  return e;
+  return JSON.stringify(e);
 }
 
 // ═══ COLUMN DETECTION UI ═══
