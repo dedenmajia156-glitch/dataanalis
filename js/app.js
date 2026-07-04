@@ -147,9 +147,8 @@ async function loadOrderData() {
   if (!sbClient || orderDataLoaded) return;
   try {
     toast('Memuat data wilayah...');
-    const { data, error } = await sbClient.rpc('get_wilayah_stats');
-    if (error) throw error;
-    orderData = (data || []).map(r => ({
+    const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
+    orderData = rows.map(r => ({
       provinsi:         r.provinsi||'',
       kabupaten:        r.kabupaten||'',
       kecamatan:        r.kecamatan||'',
