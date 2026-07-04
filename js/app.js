@@ -618,15 +618,22 @@ function goPage(name) {
 }
 
 // ═══ THEME ═══
-function toggleTheme() {
-  document.body.classList.toggle('light');
-  const isLight = document.body.classList.contains('light');
-  const themeBtn = document.getElementById('themeBtn');
-  if (themeBtn) {
-    const sunIcon = '<svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
-    const moonIcon = '<svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>';
-    themeBtn.innerHTML = isLight ? (moonIcon + ' Dark') : (sunIcon + ' Light');
+function applyTheme(isLight) {
+  const sunIcon = '<svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+  const moonIcon = '<svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>';
+  if (isLight) {
+    document.body.classList.add('light');
+  } else {
+    document.body.classList.remove('light');
   }
+  const themeBtn = document.getElementById('themeBtn');
+  if (themeBtn) themeBtn.innerHTML = isLight ? (moonIcon + ' Dark') : (sunIcon + ' Light');
+}
+
+function toggleTheme() {
+  const isLight = !document.body.classList.contains('light');
+  applyTheme(isLight);
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
 }
 
 // ═══ CLEAR DATA ═══
@@ -865,6 +872,9 @@ function processSKUFile(file) {
 
 // ═══ DOM READY ═══
 document.addEventListener('DOMContentLoaded', function() {
+  // Restore theme
+  applyTheme(localStorage.getItem('theme') === 'light');
+
   // Init tahun dropdown
   const yearEl = document.getElementById('uploadBulanY');
   if (yearEl) {
