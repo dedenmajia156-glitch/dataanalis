@@ -17,7 +17,8 @@ function fmtRp(val) {
 }
 
 function renderWilayah() {
-  const hasData = processedData.some(r => r.provinsi || r.kabupaten);
+  const srcData = orderData.length ? orderData : processedData;
+  const hasData = srcData.some(r => r.provinsi || r.kabupaten);
   if (!hasData) {
     document.getElementById('emptyWilayah').style.display = 'block';
     document.getElementById('wilayahDashboard').style.display = 'none';
@@ -31,9 +32,9 @@ function renderWilayah() {
     const el = document.getElementById(id);
     el.innerHTML = '<option value="">Semua</option>' + vals.map(v=>`<option value="${v}">${v}</option>`).join('');
   };
-  setOpts('wFilterProduk', uniq(processedData.map(r=>r.produk)));
-  setOpts('wFilterTeam',   uniq(processedData.map(r=>r.team)));
-  const bulanSet = [...new Set(processedData.map(r=>r.tanggal?.slice(0,7)).filter(Boolean))].sort();
+  setOpts('wFilterProduk', uniq(srcData.map(r=>r.produk)));
+  setOpts('wFilterTeam',   uniq(srcData.map(r=>r.team)));
+  const bulanSet = [...new Set(srcData.map(r=>r.tanggal?.slice(0,7)).filter(Boolean))].sort();
   document.getElementById('wFilterBulan').innerHTML = '<option value="">Semua</option>' +
     bulanSet.map(b => { const [y,m]=b.split('-'); return `<option value="${b}">${BULAN_NAMES[+m]} ${y}</option>`; }).join('');
 
@@ -45,7 +46,8 @@ function applyWilayahFilters() {
   const ft = document.getElementById('wFilterTeam').value;
   const fb = document.getElementById('wFilterBulan').value;
 
-  wilayahFilter = processedData.filter(r => {
+  const srcData = orderData.length ? orderData : processedData;
+  wilayahFilter = srcData.filter(r => {
     if (fp && r.produk !== fp) return false;
     if (ft && r.team   !== ft) return false;
     if (fb && r.tanggal && !r.tanggal.startsWith(fb)) return false;
