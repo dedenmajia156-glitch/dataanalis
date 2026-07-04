@@ -121,7 +121,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 }
 .btn-icon:hover { color: var(--text); border-color: var(--accent); }
 
-.content { padding: 16px 28px 28px; flex: 1; margin-top: 56px; }
+.content { padding: 8px 28px 28px; flex: 1; margin-top: 56px; }
 .page-heading {
   margin-bottom: 18px;
 }
@@ -463,7 +463,23 @@ tbody tr:hover { background: var(--surface2); }
             <div class="card-body settings-card">
               <div class="field">
                 <label>Bulan Data</label>
-                <select id="uploadBulan"></select>
+                <div style="display:flex;gap:8px">
+                  <select id="uploadBulanM" style="flex:1">
+                    <option value="01">Januari</option>
+                    <option value="02">Februari</option>
+                    <option value="03">Maret</option>
+                    <option value="04">April</option>
+                    <option value="05">Mei</option>
+                    <option value="06">Juni</option>
+                    <option value="07">Juli</option>
+                    <option value="08">Agustus</option>
+                    <option value="09">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Desember</option>
+                  </select>
+                  <select id="uploadBulanY" style="width:90px"></select>
+                </div>
               </div>
               <div class="field">
                 <label>Team</label>
@@ -697,6 +713,22 @@ async function initSupabase() {
 }
 initSupabase();
 
+async function loadAICache() {
+  if (!sbClient) return;
+  try {
+    const { data } = await sbClient.from('keluhan_ai_cache').select('keluhan,kategori,gejala,penyakit');
+    if (!data?.length) return;
+    data.forEach(r => {
+      aiResultMap[normK(r.keluhan)] = {
+        kategori: r.kategori || 'Lainnya',
+        gejala  : r.gejala   || '—',
+        penyakit: r.penyakit || '—',
+      };
+    });
+    document.getElementById('btnPDF').disabled = false;
+  } catch(e) { /* skip */ }
+}
+
 async function loadAllData() {
   if (!sbClient) return;
   try {
@@ -718,6 +750,8 @@ async function loadAllData() {
 
     document.getElementById('sb-file').textContent  = 'Semua Batch';
     document.getElementById('sb-count').textContent = processedData.length.toLocaleString() + ' baris';
+
+    await loadAICache();
 
     populateFilters(processedData);
     currentFilter = [...processedData];
@@ -754,16 +788,15 @@ function updateSKUBadge() {
 
 // Upload SKU via CSV/Excel
 document.addEventListener('DOMContentLoaded', () => {
-  // Isi dropdown Bulan di upload panel (12 bulan ke belakang dari sekarang)
-  const selBulan = document.getElementById('uploadBulan');
+  // Isi dropdown Tahun (5 tahun ke belakang s/d 2 tahun ke depan)
   const now = new Date();
-  selBulan.innerHTML = '';
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    const label = `${BULAN_NAMES[d.getMonth()+1]} ${d.getFullYear()}`;
-    selBulan.innerHTML += `<option value="${val}">${label}</option>`;
+  const selY = document.getElementById('uploadBulanY');
+  for (let y = now.getFullYear() + 2; y >= now.getFullYear() - 5; y--) {
+    selY.innerHTML += `<option value="${y}">${y}</option>`;
   }
+  // Default ke bulan & tahun sekarang
+  document.getElementById('uploadBulanM').value = String(now.getMonth() + 1).padStart(2, '0');
+  document.getElementById('uploadBulanY').value = now.getFullYear();
 
   document.getElementById('skuFileInput').addEventListener('change', e => {
     const file = e.target.files[0];
@@ -1144,7 +1177,9 @@ function analyzeData() {
   if (!rawData.length) return;
   const ck       = document.getElementById('colKeluhan').value || 'Keluhan';
   const teamForm = document.getElementById('uploadTeam').value;
-  const bulanVal = document.getElementById('uploadBulan').value; // "2026-07"
+  const bulanM   = document.getElementById('uploadBulanM').value;
+  const bulanY   = document.getElementById('uploadBulanY').value;
+  const bulanVal = `${bulanY}-${bulanM}`; // "2026-07"
 
   if (!teamForm) { toast('⚠️ Pilih Team dulu ya!', 'warn'); return; }
 
