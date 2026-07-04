@@ -971,15 +971,19 @@ function processFile(file) {
         data = csvToArray(e.target.result);
       } else if (['xlsx','xls'].includes(ext)) {
         const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const inputSheets = wb.SheetNames.filter(n => n.toLowerCase().includes('input'));
+        if (!inputSheets.length) throw new Error('Tidak ada tab dengan nama "Input" di file ini.');
+        data = inputSheets.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: '' }));
+        setStatus('loading', `⏳ Menggabungkan ${inputSheets.length} tab (${inputSheets.join(', ')})...`);
       } else {
         throw new Error('Format tidak didukung. Pakai .xlsx, .xls, atau .csv');
       }
       if (!data.length) throw new Error('File kosong atau tidak ada data.');
 
       rawData = data;
-      setStatus('ok', '✓ ' + data.length.toLocaleString() + ' baris berhasil dimuat dari ' + file.name);
+      const tabInfo = (ext !== 'csv' && typeof inputSheets !== 'undefined')
+        ? ` dari ${inputSheets.length} tab` : '';
+      setStatus('ok', '✓ ' + data.length.toLocaleString() + ' baris berhasil dimuat' + tabInfo + ' — ' + file.name);
       document.getElementById('btnAnalyze').disabled = false;
       if (!document.getElementById('batchName').value) {
         document.getElementById('batchName').value = file.name.replace(/\.[^.]+$/, '');
