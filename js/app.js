@@ -76,6 +76,13 @@ async function loadAICache() {
   }
 }
 
+// ═══ HELPER: resolve produk dari DB (handle SKU yang belum ter-resolve) ═══
+function reProduk(p) {
+  if (!p) return '';
+  const norm = p.trim().toLowerCase();
+  return skuMap[norm] || p;
+}
+
 // ═══ LOAD ALL DATA ═══
 async function loadAllData() {
   if (!sbClient) return;
@@ -84,7 +91,7 @@ async function loadAllData() {
     const { data: orders } = await sbClient.from('order_data').select('*').order('created_at', { ascending: true });
     if (orders?.length) {
       orderData = orders.map(r => ({
-        tanggal: r.tanggal||'', nama: r.nama||'', produk: r.produk||'',
+        tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
         status: r.status_akhir||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
@@ -95,7 +102,7 @@ async function loadAllData() {
     const { data: keluhanRows } = await sbClient.from('keluhan_data').select('*').order('created_at', { ascending: true });
     if (keluhanRows?.length) {
       processedData = keluhanRows.map(r => ({
-        tanggal: r.tanggal||'', nama: r.nama||'', produk: r.produk||'',
+        tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
         status: r.status_akhir||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
@@ -131,7 +138,7 @@ async function loadBatch(batchId, batchName) {
     const { data: orders } = await sbClient.from('order_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true });
     if (orders?.length) {
       orderData = orders.map(r => ({
-        tanggal: r.tanggal||'', nama: r.nama||'', produk: r.produk||'',
+        tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
         status: r.status_akhir||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
@@ -142,7 +149,7 @@ async function loadBatch(batchId, batchName) {
     const { data: keluhanRows } = await sbClient.from('keluhan_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true });
     if (keluhanRows?.length) {
       processedData = keluhanRows.map(r => ({
-        tanggal: r.tanggal||'', nama: r.nama||'', produk: r.produk||'',
+        tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
         status: r.status_akhir||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
@@ -674,9 +681,9 @@ function setStatus(type, msg) {
   if (!el) return;
   el.textContent = msg;
   el.className = 'drop-status';
-  if (type === 'ok')       el.classList.add('status-ok');
-  else if (type === 'err') el.classList.add('status-err');
-  else if (type === 'loading') el.classList.add('status-loading');
+  if (type === 'ok')           el.classList.add('ok');
+  else if (type === 'err')     el.classList.add('err');
+  else if (type === 'loading') el.classList.add('loading');
 }
 
 // ═══ TOAST ═══
