@@ -97,25 +97,11 @@ async function fetchAll(query) {
   return all;
 }
 
-// ═══ LOAD ALL DATA ═══
+// ═══ LOAD ALL DATA (hanya keluhan_data — cepat untuk startup) ═══
 async function loadAllData() {
   if (!sbClient) return;
   try {
-    toast('Memuat data...');
-    // Load semua order
-    const orders = await fetchAll((f, t) =>
-      sbClient.from('order_data').select('*').order('created_at', { ascending: true }).range(f, t)
-    );
-    if (orders.length) {
-      orderData = orders.map(r => ({
-        tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
-        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
-        status: r.status_akhir||'', provinsi: r.provinsi||'',
-        kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
-        kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
-      }));
-    }
-    // Load keluhan saja
+    toast('Memuat data keluhan...');
     const keluhanRows = await fetchAll((f, t) =>
       sbClient.from('keluhan_data').select('*').order('created_at', { ascending: true }).range(f, t)
     );
@@ -128,11 +114,10 @@ async function loadAllData() {
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
       }));
     }
-    const total = orderData.length || processedData.length;
     const sbFile = document.getElementById('sb-file');
     const sbCount = document.getElementById('sb-count');
     if (sbFile) sbFile.textContent = 'Semua Batch';
-    if (sbCount) sbCount.textContent = total.toLocaleString() + ' baris';
+    if (sbCount) sbCount.textContent = processedData.length.toLocaleString() + ' keluhan';
 
     await loadAICache();
     if (processedData.length) {
@@ -144,8 +129,37 @@ async function loadAllData() {
       if (emptyEl) emptyEl.style.display = 'none';
       if (dashEl)  dashEl.style.display  = 'block';
     }
+    orderData = []; // reset, akan di-load saat buka Analisis Wilayah
   } catch(e) {
     console.warn('loadAllData error:', e);
+  }
+}
+
+// ═══ LOAD ORDER DATA (lazy — dipanggil saat buka Analisis Wilayah) ═══
+let orderDataLoaded = false;
+async function loadOrderData() {
+  if (!sbClient || orderDataLoaded) return;
+  try {
+    toast('Memuat data wilayah...');
+    // Hanya fetch kolom yang dibutuhkan untuk wilayah
+    const orders = await fetchAll((f, t) =>
+      sbClient.from('order_data')
+        .select('tanggal,produk,team,provinsi,kabupaten,kecamatan,kelurahan,total_pembayaran')
+        .order('created_at', { ascending: true }).range(f, t)
+    );
+    if (orders.length) {
+      orderData = orders.map(r => ({
+        tanggal: r.tanggal||'', produk: reProduk(r.produk),
+        team: r.team||'', provinsi: r.provinsi||'',
+        kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
+        kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
+      }));
+      orderDataLoaded = true;
+    }
+    toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' order');
+  } catch(e) {
+    console.warn('loadOrderData error:', e);
+    toast('Gagal memuat data wilayah', 'err');
   }
 }
 
@@ -180,11 +194,11 @@ async function loadBatch(batchId, batchName) {
       }));
     }
 
+    orderDataLoaded = false; // reset supaya wilayah reload batch ini
     const sbFile  = document.getElementById('sb-file');
     const sbCount = document.getElementById('sb-count');
-    const total = orderData.length || processedData.length;
     if (sbFile)  sbFile.textContent  = batchName || 'Batch';
-    if (sbCount) sbCount.textContent = total.toLocaleString() + ' baris';
+    if (sbCount) sbCount.textContent = processedData.length.toLocaleString() + ' keluhan';
 
     if (processedData.length) {
       populateFilters(processedData);
@@ -641,9 +655,13 @@ function goPage(name) {
   const btnRefresh = document.getElementById('btnRefreshHistory');
   if (btnRefresh) btnRefresh.style.display = (name === 'riwayat') ? '' : 'none';
 
-  // Render wilayah if navigating there and data exists
-  if (name === 'wilayah' && (orderData.length > 0 || processedData.length > 0)) {
-    renderWilayah();
+  // Lazy load + render wilayah saat buka halaman itu
+  if (name === 'wilayah') {
+    if (!orderDataLoaded) {
+      loadOrderData().then(() => renderWilayah());
+    } else {
+      renderWilayah();
+    }
   }
 }
 
