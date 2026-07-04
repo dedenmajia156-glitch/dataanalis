@@ -787,8 +787,8 @@ function resolveProduk(namaField) {
   if (!kode) return '';
   // Kalau ada di skuMap → pakai nama produk lengkap
   if (skuMap[kode]) return skuMap[kode];
-  // Kalau skuMap belum loaded → pakai kode SKU-nya dulu
-  return kode;
+  // Kalau kode tidak ada di skuMap → skip (jangan paksa tampil)
+  return '';
 }
 
 // ─────────────────────────────────────────────
