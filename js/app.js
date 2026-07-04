@@ -80,7 +80,13 @@ async function loadAICache() {
 function reProduk(p) {
   if (!p) return '';
   const norm = p.trim().toLowerCase();
-  return skuMap[norm] || p;
+  // exact match
+  if (skuMap[norm]) return skuMap[norm];
+  // partial match: stored SKU mengandung key atau sebaliknya
+  const found = Object.keys(skuMap).find(k => norm.includes(k) || k.includes(norm));
+  if (found) return skuMap[found];
+  // jika tidak ada di skuMap sama sekali, kembalikan as-is (sudah nama produk)
+  return p;
 }
 
 // ═══ HELPER: fetch semua rows pakai pagination (bypass limit 1000 Supabase) ═══
@@ -135,28 +141,27 @@ async function loadAllData() {
   }
 }
 
-// ═══ LOAD ORDER DATA (lazy — dipanggil saat buka Analisis Wilayah) ═══
+// ═══ LOAD ORDER DATA (lazy — pakai RPC agregasi, jauh lebih cepat) ═══
 let orderDataLoaded = false;
 async function loadOrderData() {
   if (!sbClient || orderDataLoaded) return;
   try {
     toast('Memuat data wilayah...');
-    // Hanya fetch kolom yang dibutuhkan untuk wilayah
-    const orders = await fetchAll((f, t) =>
-      sbClient.from('order_data')
-        .select('tanggal,produk,team,provinsi,kabupaten,kecamatan,kelurahan,total_pembayaran')
-        .order('created_at', { ascending: true }).range(f, t)
-    );
-    if (orders.length) {
-      orderData = orders.map(r => ({
-        tanggal: r.tanggal||'', produk: reProduk(r.produk),
-        team: r.team||'', provinsi: r.provinsi||'',
-        kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
-        kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
-      }));
-      orderDataLoaded = true;
-    }
-    toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' order');
+    const { data, error } = await sbClient.rpc('get_wilayah_stats');
+    if (error) throw error;
+    orderData = (data || []).map(r => ({
+      provinsi:         r.provinsi||'',
+      kabupaten:        r.kabupaten||'',
+      kecamatan:        r.kecamatan||'',
+      kelurahan:        r.kelurahan||'',
+      produk:           reProduk(r.produk),
+      team:             r.team||'',
+      tanggal:          r.bulan ? r.bulan + '-01' : '',
+      total_order:      Number(r.total_order)||0,
+      total_pembayaran: Number(r.total_pembayaran)||0,
+    }));
+    orderDataLoaded = true;
+    toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' kombinasi area');
   } catch(e) {
     console.warn('loadOrderData error:', e);
     toast('Gagal memuat data wilayah', 'err');

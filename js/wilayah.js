@@ -68,8 +68,9 @@ function resetWilayahFilters() {
 
 function updateWilayahStats() {
   const data = wilayahFilter;
-  const totalOmzet = data.reduce((s,r)=>s+(r.total_pembayaran||0),0);
-  document.getElementById('wStatOrder').textContent = data.length.toLocaleString();
+  const totalOrder  = data.reduce((s,r)=>s+(r.total_order||1),0);
+  const totalOmzet  = data.reduce((s,r)=>s+(r.total_pembayaran||0),0);
+  document.getElementById('wStatOrder').textContent = totalOrder.toLocaleString();
   document.getElementById('wStatOmzet').textContent = fmtRp(totalOmzet);
   document.getElementById('wStatKab').textContent   = new Set(data.map(r=>r.kabupaten).filter(Boolean)).size;
   document.getElementById('wStatProv').textContent  = new Set(data.map(r=>r.provinsi).filter(Boolean)).size;
@@ -85,7 +86,7 @@ function renderWilayahMap() {
   wilayahFilter.forEach(r => {
     if (!r.provinsi) return;
     const p = r.provinsi.trim().toUpperCase();
-    provCount[p] = (provCount[p]||0)+1;
+    provCount[p] = (provCount[p]||0)+(r.total_order||1);
     provOmzet[p] = (provOmzet[p]||0)+(r.total_pembayaran||0);
   });
   const maxCount = Math.max(...Object.values(provCount),1);
@@ -125,9 +126,9 @@ function renderWilayahTable() {
   data.forEach(r => {
     const key = (r[level]||'').trim() || '(Tidak Ada Data)';
     if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, produkCount:{} };
-    groupMap[key].order++;
+    groupMap[key].order += r.total_order||1;
     groupMap[key].omzet += r.total_pembayaran||0;
-    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+1;
+    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+(r.total_order||1);
   });
 
   const sorted = Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order);
