@@ -245,7 +245,23 @@ function processFile(file) {
 
         sheetNames.forEach(sheetName => {
           const ws = wb.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+          // Pakai header:1 dulu untuk dapat raw headers (handle duplikat kolom)
+          const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          if (rawRows.length < 2) return;
+          const headers = rawRows[0];
+          // Buat header unik: duplikat diberi suffix _2, _3 dst
+          const headerCount = {};
+          const uniqueHeaders = headers.map(h => {
+            const key = String(h).trim();
+            if (!headerCount[key]) { headerCount[key] = 1; return key; }
+            headerCount[key]++;
+            return key + '_' + headerCount[key];
+          });
+          const rows = rawRows.slice(1).map(row => {
+            const obj = {};
+            uniqueHeaders.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
+            return obj;
+          });
           if (rows.length) allRows = allRows.concat(rows);
         });
 
@@ -294,7 +310,7 @@ async function analyzeData() {
   toast('Memproses data...');
 
   try {
-    allMapped = rawData.map(row => {
+    const rawMapped = rawData.map(row => {
       const namaRaw = getAny(row, 'Nama', 'nama', 'NamaCustomer', 'nama customer', 'Customer', 'Nama Customer') || '';
       const namaCustomer = namaRaw.includes('|') ? namaRaw.split('|')[0].trim() : namaRaw.trim();
       const tglRaw = getAny(row, 'Tanggal', 'tanggal', 'Date', 'date', 'TglOrder', 'Tgl Order');
@@ -315,9 +331,17 @@ async function analyzeData() {
       };
     });
 
+    // Buang rows yang benar-benar kosong (tidak ada nama, produk, cs, keluhan, total)
+    allMapped = rawMapped.filter(r =>
+      r.nama || r.produk || r.cs || r.keluhan || r.total_pembayaran
+    );
+
+    const skipped = rawMapped.length - allMapped.length;
+    if (skipped > 0) toast(skipped + ' baris kosong di-skip', 'warn');
+
     // processedData = hanya rows yang ada produk atau keluhan
     processedData = allMapped.filter(r => r.produk || r.keluhan);
-    // orderData local = semua rows
+    // orderData local = semua rows valid
     orderData = [...allMapped];
 
     if (!processedData.length) {
@@ -871,18 +895,46 @@ function getWilayahCol(row, ...keywords) {
   if (!row) return '';
   const normalize = s => String(s).toLowerCase().replace(/[\s\-_]/g, '');
   const normKeys = keywords.map(normalize);
-  const key = Object.keys(row).find(k => {
-    const nk = normalize(k);
-    return normKeys.some(nkw => nk === nkw || nk.includes(nkw) || nkw.includes(nk));
-  });
-  return key ? String(row[key] || '').trim() : '';
+  const keys = Object.keys(row);
+  // 1. Exact match dulu
+  let key = keys.find(k => normKeys.includes(normalize(k)));
+  // 2. Kolom mengandung keyword (tapi bukan sebaliknya — hindari false positive)
+  if (!key) key = keys.find(k => normKeys.some(nkw => normalize(k).includes(nkw)));
+  return key ? String(row[key] ?? '').trim() : '';
 }
 
 // ═══ HELPER: parseRupiah ═══
 function parseRupiah(val) {
   if (!val && val !== 0) return 0;
   if (typeof val === 'number') return Math.round(val);
-  const s = String(val).replace(/[Rp\s]/g, '').replace(/\./g, '').replace(/,/g, '.');
+  // Hapus simbol mata uang, spasi, karakter non-numerik kecuali . dan ,
+  let s = String(val).trim().replace(/[Rp$€IDR\s]/gi, '');
+  if (!s) return 0;
+
+  const hasDot   = s.includes('.');
+  const hasComma = s.includes(',');
+
+  if (hasDot && hasComma) {
+    // Tentukan separator mana yang terakhir → itu decimal
+    // "1.500.000,50" → Indonesian: buang titik, ganti koma jadi titik
+    // "1,500,000.50" → English: buang koma
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+  } else if (hasDot) {
+    // "150.000" → 3 digit setelah titik terakhir = ribuan Indonesia, bukan desimal
+    const afterDot = s.split('.').pop();
+    if (afterDot.length === 3) s = s.replace(/\./g, ''); // ribuan
+    // else biarkan → desimal biasa
+  } else if (hasComma) {
+    // "150,000" → ribuan English; "150,50" → desimal
+    const afterComma = s.split(',').pop();
+    if (afterComma.length === 3) s = s.replace(/,/g, '');
+    else s = s.replace(',', '.');
+  }
+
   const n = parseFloat(s);
   return isNaN(n) ? 0 : Math.round(n);
 }
