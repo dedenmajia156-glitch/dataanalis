@@ -117,7 +117,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 }
 .btn-icon:hover { color: var(--text); border-color: var(--accent); }
 
-.content { padding: 28px; flex: 1; }
+.content { padding: 20px 28px 28px; flex: 1; }
+.page-heading {
+  margin-bottom: 18px;
+}
+.page-heading h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+.page-heading p { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .page { width: 100%; display: none; }
 .page.active { display: block; }
 
@@ -453,18 +458,25 @@ tbody tr:hover { background: var(--surface2); }
             </div>
             <div class="card-body settings-card">
               <div class="field">
-                <label>Nama Batch / Periode</label>
-                <input type="text" id="batchName" placeholder="Cth: Closing Juni 2026"/>
+                <label>Bulan Data</label>
+                <select id="uploadBulan"></select>
               </div>
               <div class="field">
-                <label>Kolom Produk</label>
-                <input type="text" id="colProduk" value="Jumlah Pesanan" placeholder="Nama kolom produk"/>
-                <span class="field-hint">Nama kolom di Excel yang berisi nama produk</span>
+                <label>Team</label>
+                <select id="uploadTeam">
+                  <option value="">-- Pilih Team --</option>
+                  <option value="Ghazi">Ghazi</option>
+                  <option value="Herba">Herba</option>
+                  <option value="Zaydan">Zaydan</option>
+                  <option value="CRM">CRM</option>
+                </select>
               </div>
               <div class="field">
                 <label>Kolom Keluhan</label>
                 <input type="text" id="colKeluhan" value="Keluhan" placeholder="Nama kolom keluhan"/>
               </div>
+              <input type="hidden" id="colProduk" value="Jumlah Pesanan"/>
+              <input type="hidden" id="batchName" value=""/>
 
               <div class="divider"></div>
 
@@ -509,6 +521,11 @@ tbody tr:hover { background: var(--surface2); }
 
       <!-- Dashboard -->
       <div id="dashboard" style="display:none">
+
+        <div class="page-heading">
+          <h1>Analisis Keluhan</h1>
+          <p id="dashSubtitle">Semua data tersimpan</p>
+        </div>
 
         <!-- STATS -->
         <div class="stats-grid">
@@ -555,12 +572,10 @@ tbody tr:hover { background: var(--surface2); }
             </select>
           </div>
           <div class="field">
-            <label>Dari</label>
-            <input type="date" id="fDateFrom" onchange="applyFilters()"/>
-          </div>
-          <div class="field">
-            <label>Sampai</label>
-            <input type="date" id="fDateTo" onchange="applyFilters()"/>
+            <label>Bulan</label>
+            <select id="filterBulan" onchange="applyFilters()">
+              <option value="">Semua</option>
+            </select>
           </div>
           <button class="btn btn-outline" onclick="resetFilters()" style="font-size:12px">↺ Reset</button>
         </div>
@@ -667,6 +682,7 @@ tbody tr:hover { background: var(--surface2); }
 // SUPABASE INIT
 // ─────────────────────────────────────────────
 let sbClient = null;
+const BULAN_NAMES = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
 async function initSupabase() {
   try {
@@ -739,6 +755,17 @@ function updateSKUBadge() {
 
 // Upload SKU via CSV/Excel
 document.addEventListener('DOMContentLoaded', () => {
+  // Isi dropdown Bulan di upload panel (12 bulan ke belakang dari sekarang)
+  const selBulan = document.getElementById('uploadBulan');
+  const now = new Date();
+  selBulan.innerHTML = '';
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = `${BULAN_NAMES[d.getMonth()+1]} ${d.getFullYear()}`;
+    selBulan.innerHTML += `<option value="${val}">${label}</option>`;
+  }
+
   document.getElementById('skuFileInput').addEventListener('change', e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1116,31 +1143,44 @@ function normK(s) { return String(s||'').trim().toLowerCase().replace(/\s+/g,' '
 // ─────────────────────────────────────────────
 function analyzeData() {
   if (!rawData.length) return;
-  const cp = document.getElementById('colProduk').value  || 'Jumlah Pesanan';
-  const ck = document.getElementById('colKeluhan').value || 'Keluhan';
+  const ck       = document.getElementById('colKeluhan').value || 'Keluhan';
+  const teamForm = document.getElementById('uploadTeam').value;
+  const bulanVal = document.getElementById('uploadBulan').value; // "2026-07"
+
+  if (!teamForm) { toast('⚠️ Pilih Team dulu ya!', 'warn'); return; }
+
+  // Auto-set batchName dari bulan + team
+  const [by, bm] = bulanVal.split('-');
+  const batchLabel = `${BULAN_NAMES[+bm]} ${by} — ${teamForm}`;
+  document.getElementById('batchName').value = batchLabel;
 
   processedData = rawData.map(row => {
     const namaRaw      = getAny(row,'Nama','nama','NamaCustomer','name');
     const namaCustomer = namaRaw.includes('|') ? namaRaw.split('|')[0].trim() : namaRaw;
+    // Tanggal dari Excel, fallback ke bulan yang dipilih (tanggal 1)
+    const tgl = normDate(getAny(row,'Tanggal','tanggal','Tgl','tgl','Date')) || bulanVal + '-01';
     return {
-      tanggal: normDate(getAny(row,'Tanggal','tanggal','Tgl','tgl','Date')),
+      tanggal: tgl,
       nama   : namaCustomer,
       produk : resolveProduk(namaRaw),
       keluhan: getCol(row, ck),
-      team   : getAny(row,'TEAM','Team','team'),
+      team   : teamForm,
       cs     : getAny(row,'CS','CSA','csa','cs'),
       status : getAny(row,'Status Akhir','StatusAkhir','Status','status'),
     };
   }).filter(r => r.produk || r.keluhan);
 
   if (!processedData.length) {
-    toast('⚠️ Tidak ada data valid. Cek nama kolom Produk/Keluhan.', 'warn');
+    toast('⚠️ Tidak ada data valid. Cek nama kolom Keluhan.', 'warn');
     return;
   }
 
   populateFilters(processedData);
   currentFilter = [...processedData];
   renderAll(currentFilter);
+
+  const sub = document.getElementById('dashSubtitle');
+  if (sub) sub.textContent = `${batchLabel} · ${processedData.length.toLocaleString()} baris`;
 
   document.getElementById('emptyAnalisis').style.display  = 'none';
   document.getElementById('dashboard').style.display      = 'block';
@@ -1164,22 +1204,29 @@ function populateFilters(data) {
   setOpts('filterProduk', uniq(data.map(r => r.produk)));
   setOpts('filterTeam',   uniq(data.map(r => r.team)));
   setOpts('filterCS',     uniq(data.map(r => r.cs)));
+
+  // Populate bulan filter dari tanggal yang ada di data
+  const bulanSet = [...new Set(data.map(r => r.tanggal?.slice(0,7)).filter(Boolean))].sort();
+  const elBulan = document.getElementById('filterBulan');
+  elBulan.innerHTML = '<option value="">Semua</option>' +
+    bulanSet.map(b => {
+      const [y, m] = b.split('-');
+      return `<option value="${b}">${BULAN_NAMES[+m]} ${y}</option>`;
+    }).join('');
 }
 
 function applyFilters() {
   const fp = document.getElementById('filterProduk').value;
   const ft = document.getElementById('filterTeam').value;
   const fc = document.getElementById('filterCS').value;
-  const d1 = document.getElementById('fDateFrom').value;
-  const d2 = document.getElementById('fDateTo').value;
+  const fb = document.getElementById('filterBulan').value; // format: "2026-01"
   const kw = document.getElementById('searchInput').value.toLowerCase();
 
   currentFilter = processedData.filter(r => {
     if (fp && r.produk !== fp) return false;
     if (ft && r.team   !== ft) return false;
     if (fc && r.cs     !== fc) return false;
-    if (d1 && r.tanggal && r.tanggal < d1) return false;
-    if (d2 && r.tanggal && r.tanggal > d2) return false;
+    if (fb && r.tanggal && !r.tanggal.startsWith(fb)) return false;
     if (kw && !r.keluhan.toLowerCase().includes(kw)) return false;
     return true;
   });
@@ -1188,9 +1235,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  ['filterProduk','filterTeam','filterCS'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('fDateFrom').value = '';
-  document.getElementById('fDateTo').value   = '';
+  ['filterProduk','filterTeam','filterCS','filterBulan'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('searchInput').value = '';
   currentFilter = [...processedData];
   currentPage = 1;
@@ -1205,6 +1250,9 @@ function renderAll(data) {
   renderCharts(data);
   renderRank(data);
   renderTable(data, currentPage);
+  // Re-render AI result pakai data terfilter (tanpa re-hit API)
+  const wk = data.filter(r => r.keluhan?.trim());
+  if (Object.keys(aiResultMap).length && wk.length) renderAIResult(wk);
 }
 
 function updateStats(data) {
