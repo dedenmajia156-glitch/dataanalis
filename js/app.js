@@ -83,13 +83,30 @@ function reProduk(p) {
   return skuMap[norm] || p;
 }
 
+// ═══ HELPER: fetch semua rows pakai pagination (bypass limit 1000 Supabase) ═══
+async function fetchAll(query) {
+  const PAGE = 1000;
+  let all = [], from = 0;
+  while (true) {
+    const { data, error } = await query(from, from + PAGE - 1);
+    if (error) throw error;
+    if (data?.length) all = all.concat(data);
+    if (!data || data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 // ═══ LOAD ALL DATA ═══
 async function loadAllData() {
   if (!sbClient) return;
   try {
+    toast('Memuat data...');
     // Load semua order
-    const { data: orders } = await sbClient.from('order_data').select('*').order('created_at', { ascending: true });
-    if (orders?.length) {
+    const orders = await fetchAll((f, t) =>
+      sbClient.from('order_data').select('*').order('created_at', { ascending: true }).range(f, t)
+    );
+    if (orders.length) {
       orderData = orders.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
@@ -99,8 +116,10 @@ async function loadAllData() {
       }));
     }
     // Load keluhan saja
-    const { data: keluhanRows } = await sbClient.from('keluhan_data').select('*').order('created_at', { ascending: true });
-    if (keluhanRows?.length) {
+    const keluhanRows = await fetchAll((f, t) =>
+      sbClient.from('keluhan_data').select('*').order('created_at', { ascending: true }).range(f, t)
+    );
+    if (keluhanRows.length) {
       processedData = keluhanRows.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
@@ -135,8 +154,10 @@ async function loadBatch(batchId, batchName) {
   if (!sbClient) return;
   try {
     // Load order_data for this batch
-    const { data: orders } = await sbClient.from('order_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true });
-    if (orders?.length) {
+    const orders = await fetchAll((f, t) =>
+      sbClient.from('order_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true }).range(f, t)
+    );
+    if (orders.length) {
       orderData = orders.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
@@ -146,8 +167,10 @@ async function loadBatch(batchId, batchName) {
       }));
     }
     // Load keluhan for this batch
-    const { data: keluhanRows } = await sbClient.from('keluhan_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true });
-    if (keluhanRows?.length) {
+    const keluhanRows = await fetchAll((f, t) =>
+      sbClient.from('keluhan_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true }).range(f, t)
+    );
+    if (keluhanRows.length) {
       processedData = keluhanRows.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
