@@ -46,8 +46,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
   padding: 22px 20px 18px;
   border-bottom: 1px solid var(--border);
 }
-.logo-wrap { display:flex; align-items:baseline; gap:6px; }
-.logo-adsy { font-size:18px; font-weight:900; background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.logo-wrap { display:flex; align-items:center; gap:8px; }
+.logo-img { height:28px; width:auto; object-fit:contain; }
 .logo-app { font-size:13px; font-weight:700; color:var(--text); }
 .sidebar-brand .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
