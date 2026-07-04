@@ -327,7 +327,7 @@ async function analyzeData() {
         kabupaten:        getWilayahCol(row, 'kabupaten', 'kab', 'kotakab', 'kotamadya'),
         kecamatan:        getWilayahCol(row, 'kecamatan', 'kec'),
         kelurahan:        getWilayahCol(row, 'kelurahan', 'kel', 'desa'),
-        total_pembayaran: parseRupiah(getWilayahCol(row, 'totalpembayaran', 'totalbayar', 'pembayaran', 'total pembayaran', 'total_pembayaran')),
+        total_pembayaran: parseRupiah(getWilayahCol(row, 'totalpembayaran', 'totalbayar', 'totalbayaran')),
       };
     });
 
