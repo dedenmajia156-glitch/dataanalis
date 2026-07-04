@@ -80,13 +80,14 @@ async function loadAICache() {
 function reProduk(p) {
   if (!p) return '';
   const norm = p.trim().toLowerCase();
-  // exact match
+  // exact match sebagai SKU
   if (skuMap[norm]) return skuMap[norm];
-  // partial match: stored SKU mengandung key atau sebaliknya
+  // partial match
   const found = Object.keys(skuMap).find(k => norm.includes(k) || k.includes(norm));
   if (found) return skuMap[found];
-  // jika tidak ada di skuMap sama sekali, kembalikan as-is (sudah nama produk)
-  return p;
+  // Cek apakah nilai ini adalah nama produk yang valid (ada di values skuMap)
+  const isValidName = Object.values(skuMap).some(v => v.toLowerCase() === norm);
+  return isValidName ? p : '';
 }
 
 // ═══ HELPER: fetch semua rows pakai pagination (bypass limit 1000 Supabase) ═══
@@ -886,7 +887,8 @@ function resolveProduk(namaField) {
   if (skuMap[skuNorm]) return skuMap[skuNorm];
   // Partial match
   const found = Object.keys(skuMap).find(k => skuNorm.includes(k) || k.includes(skuNorm));
-  return found ? skuMap[found] : sku;
+  // Kalau tidak ada di SKU map → return '' (jangan tampilkan kode mentah)
+  return found ? skuMap[found] : '';
 }
 
 // ═══ HELPER: getWilayahCol ═══
