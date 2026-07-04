@@ -1086,15 +1086,28 @@ function getAny(row, ...names) {
   return '';
 }
 function normDate(val) {
-  if (!val) return '';
+  if (!val) return null;
+  // Kalau sudah Date object (dari cellDates:true)
+  if (val instanceof Date) {
+    if (isNaN(val)) return null;
+    return val.toISOString().slice(0,10);
+  }
   const s = String(val).trim();
+  if (!s) return null;
+  // Format yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // Format dd/mm/yyyy atau dd-mm-yyyy
   const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (m) {
     const y = m[3].length === 2 ? '20'+m[3] : m[3];
-    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    const result = `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    if (isNaN(Date.parse(result))) return null;
+    return result;
   }
-  return s.slice(0,10);
+  // Coba parse langsung
+  const d = new Date(s);
+  if (!isNaN(d)) return d.toISOString().slice(0,10);
+  return null;
 }
 function normK(s) { return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 
@@ -1700,7 +1713,7 @@ async function saveToSupabase() {
     }));
     for (let i=0;i<rows.length;i+=500) {
       const { error: e2 } = await sbClient.from('keluhan_data').insert(rows.slice(i,i+500));
-      if (e2) throw e2;
+      if (e2) { console.error('Insert error batch', i, e2, rows.slice(i,i+1)); throw e2; }
     }
     toast('✅ Tersimpan! ' + rows.length + ' keluhan. Memuat semua data...');
     await loadAllData();
