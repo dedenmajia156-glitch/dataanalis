@@ -121,7 +121,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 }
 .btn-icon:hover { color: var(--text); border-color: var(--accent); }
 
-.content { padding: 28px; flex: 1; margin-top: 56px; }
+.content { padding: 16px 28px 28px; flex: 1; margin-top: 56px; }
 .page-heading {
   margin-bottom: 18px;
 }
@@ -847,7 +847,7 @@ function goPage(name) {
     document.querySelector('.main').scrollTop = 0;
   }
 
-  const titles = { upload: 'Upload Data', analisis: 'Analisis', riwayat: 'Riwayat Upload' };
+  const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan', riwayat: 'Riwayat Upload' };
   document.getElementById('topbarTitle').textContent = titles[name] || name;
   document.getElementById('btnRefreshHistory').style.display = name === 'riwayat' ? 'block' : 'none';
   if (name === 'riwayat') loadHistory();
