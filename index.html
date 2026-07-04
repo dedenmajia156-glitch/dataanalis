@@ -99,6 +99,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
 }
 .topbar {
   background: var(--surface);
@@ -843,7 +844,7 @@ function goPage(name) {
     document.querySelector('.main').scrollTop = 0;
   }
 
-  const titles = { upload: 'Upload Data', analisis: 'Analisis Keluhan', riwayat: 'Riwayat Upload' };
+  const titles = { upload: 'Upload Data', analisis: 'Analisis', riwayat: 'Riwayat Upload' };
   document.getElementById('topbarTitle').textContent = titles[name] || name;
   document.getElementById('btnRefreshHistory').style.display = name === 'riwayat' ? 'block' : 'none';
   if (name === 'riwayat') loadHistory();
