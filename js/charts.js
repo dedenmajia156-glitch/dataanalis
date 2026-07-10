@@ -161,6 +161,7 @@ function renderTable(data, page) {
       <td>${r.team||'—'}</td>
       <td>${r.cs||'—'}</td>
       <td>${badgeStatus(r.status)}</td>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap">${r.resi||'—'}</td>
     </tr>`).join('');
 
   renderPagination(wk.length, page);

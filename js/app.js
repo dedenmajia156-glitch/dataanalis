@@ -116,7 +116,7 @@ async function loadAllData() {
       processedData = keluhanRows.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
-        status: r.status_akhir||'', provinsi: r.provinsi||'',
+        status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
       }));
@@ -180,7 +180,7 @@ async function loadBatch(batchId, batchName) {
       orderData = orders.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
-        status: r.status_akhir||'', provinsi: r.provinsi||'',
+        status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
       }));
@@ -193,7 +193,7 @@ async function loadBatch(batchId, batchName) {
       processedData = keluhanRows.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
         keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
-        status: r.status_akhir||'', provinsi: r.provinsi||'',
+        status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
       }));
@@ -323,6 +323,7 @@ async function analyzeData() {
         team:             teamForm,
         cs:               getAny(row, 'CS', 'CSA', 'csa', 'cs'),
         status:           getAny(row, 'Status Akhir', 'StatusAkhir', 'Status', 'status'),
+        resi:             getAny(row, 'No Resi', 'No. Resi', 'Nomor Resi', 'NoResi', 'NomorResi', 'Resi', 'resi', 'no resi'),
         provinsi:         getWilayahCol(row, 'provinsi', 'prov'),
         kabupaten:        getWilayahCol(row, 'kabupaten', 'kab', 'kotakab', 'kotamadya'),
         kecamatan:        getWilayahCol(row, 'kecamatan', 'kec'),
@@ -398,6 +399,7 @@ async function saveToSupabase() {
       team:             r.team || null,
       cs:               r.cs || null,
       status_akhir:     r.status || null,
+      resi:             r.resi || null,
       provinsi:         r.provinsi || null,
       kabupaten:        r.kabupaten || null,
       kecamatan:        r.kecamatan || null,
@@ -422,6 +424,7 @@ async function saveToSupabase() {
       team:             r.team || null,
       cs:               r.cs || null,
       status_akhir:     r.status || null,
+      resi:             r.resi || null,
       provinsi:         r.provinsi || null,
       kabupaten:        r.kabupaten || null,
       kecamatan:        r.kecamatan || null,
@@ -477,8 +480,8 @@ function renderStats(data) {
 function exportCSV() {
   if (!currentFilter.length) { toast('Tidak ada data untuk diekspor', 'warn'); return; }
   const wk = currentFilter.filter(r => r.keluhan?.trim());
-  const headers = ['Tanggal','Nama','Produk','Keluhan','Team','CS','Status'];
-  const rows = wk.map(r => [r.tanggal, r.nama, r.produk, r.keluhan, r.team, r.cs, r.status]);
+  const headers = ['Tanggal','Nama','Produk','Keluhan','Team','CS','Status','No Resi'];
+  const rows = wk.map(r => [r.tanggal, r.nama, r.produk, r.keluhan, r.team, r.cs, r.status, r.resi||'']);
   const csv  = [headers, ...rows].map(r => r.map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
