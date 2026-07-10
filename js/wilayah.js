@@ -244,8 +244,22 @@ function downloadWilayahExcel() {
   const ft = document.getElementById('wFilterTeam').value;
   const fb = document.getElementById('wFilterBulan').value;
   const suffix = [fp, ft, fb].filter(Boolean).join('_') || 'Semua';
-  XLSX.writeFile(wb, `Analisis_Wilayah_${suffix}.xlsx`);
-  toast('✅ Excel berhasil didownload!');
+
+  try {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob  = new Blob([wbout], { type: 'application/octet-stream' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href = url;
+    a.download = `Analisis_Wilayah_${suffix}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('✅ Excel berhasil didownload!');
+  } catch(e) {
+    toast('Gagal download Excel: ' + e.message, 'err');
+  }
 }
 
 // ─── DOWNLOAD PDF ───
