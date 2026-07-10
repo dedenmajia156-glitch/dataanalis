@@ -366,9 +366,11 @@
         <div class="table-card">
           <div class="table-toolbar">
             <span class="t-title">📍 Detail Wilayah</span>
-            <div style="display:flex;gap:8px;align-items:center">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span id="wBreadcrumb" style="font-size:12px;color:var(--muted)">Semua Provinsi</span>
               <button class="btn btn-outline btn-sm" id="wBtnBack" onclick="drillUp()" style="display:none">← Kembali</button>
+              <button class="btn btn-outline btn-sm" onclick="downloadWilayahExcel()" title="Download semua level sebagai Excel">⬇ Excel</button>
+              <button class="btn btn-outline btn-sm" onclick="downloadWilayahPDF()" title="Download tampilan saat ini sebagai PDF">📄 PDF</button>
             </div>
           </div>
           <div class="table-wrap">
