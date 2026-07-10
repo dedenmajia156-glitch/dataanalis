@@ -217,8 +217,8 @@ function downloadWilayahExcel() {
 
   const wb = XLSX.utils.book_new();
   const levels    = ['provinsi','kabupaten','kecamatan','kelurahan'];
-  const labelMap  = { provinsi:'Provinsi', kabupaten:'Kabupaten/Kota', kecamatan:'Kecamatan', kelurahan:'Kelurahan' };
-  const parentLbl = { provinsi:null, kabupaten:'Provinsi', kecamatan:'Kabupaten/Kota', kelurahan:'Kecamatan' };
+  const labelMap  = { provinsi:'Provinsi', kabupaten:'Kabupaten-Kota', kecamatan:'Kecamatan', kelurahan:'Kelurahan' };
+  const parentLbl = { provinsi:null, kabupaten:'Provinsi', kecamatan:'Kabupaten-Kota', kelurahan:'Kecamatan' };
 
   levels.forEach(level => {
     const rows = getWilayahLevelData(level).map(d => {
