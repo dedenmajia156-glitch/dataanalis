@@ -157,6 +157,7 @@ async function loadOrderData() {
       produk:           reProduk(r.produk),
       team:             r.team||'',
       tanggal:          r.bulan ? r.bulan + '-01' : '',
+      status:           r.status_akhir||'',
       total_order:      Number(r.total_order)||0,
       total_pembayaran: Number(r.total_pembayaran)||0,
     }));

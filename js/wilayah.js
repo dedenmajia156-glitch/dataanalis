@@ -144,10 +144,18 @@ function renderWilayahTable() {
 
   document.getElementById('wilayahTbody').innerHTML = sorted.map(([name,d])=>{
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
-    const avg = d.order ? Math.round(d.omzet/d.order) : 0;
-    const safeN = name.replace(/'/g,"\\'");
-    return `<tr style="cursor:${canDrill?'pointer':'default'}" ${canDrill?`onclick="drillTo('${nextLevel}','${safeN}')"`:''}><td style="font-weight:600">${canDrill?'▶ ':''}${name}</td><td>${d.order.toLocaleString()}</td><td>${fmtRp(d.omzet)}</td><td><span class="badge b-purple">${terlaris}</span></td><td style="color:var(--muted)">${fmtRp(avg)}</td></tr>`;
-  }).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:40px">Tidak ada data wilayah</td></tr>';
+    const safeN    = name.replace(/'/g,"\\'");
+    const pctDeliv = d.order ? Math.round(d.delivered/d.order*100) : 0;
+    const pctRts   = d.order ? Math.round(d.rts/d.order*100) : 0;
+    return `<tr style="cursor:${canDrill?'pointer':'default'}" ${canDrill?`onclick="drillTo('${nextLevel}','${safeN}')"`:''}>`+
+      `<td style="font-weight:600">${canDrill?'▶ ':''}${name}</td>`+
+      `<td style="font-weight:700">${d.order.toLocaleString()}</td>`+
+      `<td><span style="color:#22c55e;font-weight:600">${d.delivered.toLocaleString()}</span> <span style="font-size:11px;color:var(--muted)">(${pctDeliv}%)</span></td>`+
+      `<td><span style="color:#ef4444;font-weight:600">${d.rts.toLocaleString()}</span> <span style="font-size:11px;color:var(--muted)">(${pctRts}%)</span></td>`+
+      `<td>${fmtRp(d.omzet)}</td>`+
+      `<td><span class="badge b-purple">${terlaris}</span></td>`+
+      `</tr>`;
+  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:40px">Tidak ada data wilayah</td></tr>';
 }
 
 function drillTo(level, value) {
@@ -161,6 +169,16 @@ function drillUp() {
   const prev = wilayahDrillStack.pop();
   wilayahDrillLevel = prev.level;
   renderWilayahTable();
+}
+
+// ─── helper: klasifikasi status pengiriman ───
+function classifyStatus(s) {
+  if (!s) return 'lainnya';
+  const sl = s.toLowerCase();
+  if (sl.includes('rts') || sl.includes('return') || sl.includes('retur') || sl.includes('kembali')) return 'rts';
+  if (sl.includes('lunas') || sl.includes('selesai') || sl.includes('success') ||
+      sl.includes('terkirim') || sl.includes('delivered') || sl.includes('diterima') || sl.includes('deliv')) return 'delivered';
+  return 'lainnya';
 }
 
 // ─── helper: format rupiah lengkap (untuk PDF/Excel) ───
@@ -179,15 +197,19 @@ function getCurrentViewData() {
   const groupMap = {};
   data.forEach(r => {
     const key = (r[level]||'').trim() || '(Tidak Ada Data)';
-    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, produkCount:{} };
-    groupMap[key].order += r.total_order||1;
+    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, delivered:0, rts:0, produkCount:{} };
+    const qty = r.total_order||1;
+    groupMap[key].order += qty;
     groupMap[key].omzet += r.total_pembayaran||0;
-    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+(r.total_order||1);
+    const cls = classifyStatus(r.status);
+    if (cls === 'delivered') groupMap[key].delivered += qty;
+    else if (cls === 'rts')  groupMap[key].rts       += qty;
+    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+qty;
   });
   return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([name, d]) => {
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
     const avg = d.order ? Math.round(d.omzet/d.order) : 0;
-    return { name, order: d.order, omzet: d.omzet, terlaris, avg };
+    return { name, order: d.order, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
   });
 }
 
@@ -199,15 +221,19 @@ function getWilayahLevelData(level) {
     const key = (r[level]||'').trim();
     if (!key) return;
     const parent = parentKey[level] ? (r[parentKey[level]]||'') : null;
-    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, produkCount:{}, parent: parent||'' };
-    groupMap[key].order += r.total_order||1;
+    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, delivered:0, rts:0, produkCount:{}, parent: parent||'' };
+    const qty = r.total_order||1;
+    groupMap[key].order += qty;
     groupMap[key].omzet += r.total_pembayaran||0;
-    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+(r.total_order||1);
+    const cls = classifyStatus(r.status);
+    if (cls === 'delivered') groupMap[key].delivered += qty;
+    else if (cls === 'rts')  groupMap[key].rts       += qty;
+    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+qty;
   });
   return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([name, d]) => {
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
     const avg = d.order ? Math.round(d.omzet/d.order) : 0;
-    return { name, parent: d.parent, order: d.order, omzet: d.omzet, terlaris, avg };
+    return { name, parent: d.parent, order: d.order, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
   });
 }
 
@@ -222,13 +248,18 @@ function downloadWilayahExcel() {
 
   levels.forEach(level => {
     const rows = getWilayahLevelData(level).map(d => {
+      const pctDeliv = d.order ? Math.round(d.delivered/d.order*100) : 0;
+      const pctRts   = d.order ? Math.round(d.rts/d.order*100) : 0;
       const row = {};
-      row[labelMap[level]] = d.name;
+      row[labelMap[level]]     = d.name;
       if (parentLbl[level]) row[parentLbl[level]] = d.parent;
       row['Total Order']       = d.order;
+      row['Delivered']         = d.delivered;
+      row['% Delivered']       = pctDeliv + '%';
+      row['RTS']               = d.rts;
+      row['% RTS']             = pctRts + '%';
       row['Total Pembayaran']  = d.omzet;
       row['Produk Terlaris']   = d.terlaris;
-      row['Rata-rata / Order'] = d.avg;
       return row;
     });
 
@@ -296,23 +327,33 @@ function downloadWilayahPDF() {
   const rows = getCurrentViewData();
   doc.autoTable({
     startY: 37,
-    head: [[ levelLabel[wilayahDrillLevel], 'Total Order', 'Total Pembayaran', 'Produk Terlaris', 'Rata-rata / Order' ]],
-    body: rows.map(r => [
-      r.name,
-      r.order.toLocaleString('id-ID'),
-      fmtRpFull(r.omzet),
-      r.terlaris,
-      fmtRpFull(r.avg)
-    ]),
-    styles:          { fontSize: 8.5, cellPadding: 3 },
-    headStyles:      { fillColor: [124,111,247], textColor: 255, fontStyle: 'bold' },
+    head: [[ levelLabel[wilayahDrillLevel], 'Total Order', 'Delivered', '% Deliv', 'RTS', '% RTS', 'Total Pembayaran', 'Produk Terlaris' ]],
+    body: rows.map(r => {
+      const pctDeliv = r.order ? Math.round(r.delivered/r.order*100) : 0;
+      const pctRts   = r.order ? Math.round(r.rts/r.order*100) : 0;
+      return [
+        r.name,
+        r.order.toLocaleString('id-ID'),
+        r.delivered.toLocaleString('id-ID'),
+        pctDeliv + '%',
+        r.rts.toLocaleString('id-ID'),
+        pctRts + '%',
+        fmtRpFull(r.omzet),
+        r.terlaris,
+      ];
+    }),
+    styles:             { fontSize: 8, cellPadding: 2.5 },
+    headStyles:         { fillColor: [124,111,247], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245,244,255] },
     columnStyles: {
-      0: { cellWidth: 60 },
-      1: { cellWidth: 28, halign: 'right' },
-      2: { cellWidth: 42, halign: 'right' },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 42, halign: 'right' },
+      0: { cellWidth: 52 },
+      1: { cellWidth: 22, halign: 'right' },
+      2: { cellWidth: 22, halign: 'right' },
+      3: { cellWidth: 16, halign: 'center' },
+      4: { cellWidth: 18, halign: 'right' },
+      5: { cellWidth: 14, halign: 'center' },
+      6: { cellWidth: 38, halign: 'right' },
+      7: { cellWidth: 'auto' },
     },
     margin: { left: 14, right: 14 }
   });
