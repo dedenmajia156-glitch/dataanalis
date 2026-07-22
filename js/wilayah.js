@@ -70,15 +70,14 @@ function applyWilayahFilters() {
   const fp = document.getElementById('wFilterProduk').value;
   const ft = document.getElementById('wFilterTeam').value;
   const fb = document.getElementById('wFilterBulan').value;
-  const fc = document.getElementById('wFilterCS').value;
   const fs = document.getElementById('wFilterStatus').value;
+  // cs & ekspedisi hanya untuk section ekspedisi, tidak dipakai di wilayahFilter (RPC tidak punya kolom itu)
 
   const srcData = orderData.length ? orderData : processedData;
   wilayahFilter = srcData.filter(r => {
     if (fp && r.produk !== fp) return false;
     if (ft && r.team   !== ft) return false;
     if (fb && r.tanggal && !r.tanggal.startsWith(fb)) return false;
-    if (fc && r.cs     !== fc) return false;
     if (fs && classifyStatus(r.status) !== fs) return false;
     return true;
   });
