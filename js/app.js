@@ -332,13 +332,6 @@ async function analyzeData() {
   toast('Memproses data...');
 
   try {
-    // Debug — hapus setelah dicek
-    if (rawData.length) {
-      const r0 = rawData[0];
-      console.log('[DEBUG] Semua kolom:', Object.keys(r0));
-      toast('[DEBUG] Kolom: ' + Object.keys(r0).join(' | '), 'warn');
-    }
-
     const rawMapped = rawData.map(row => {
       const namaRaw = getAny(row, 'Nama', 'nama', 'NamaCustomer', 'nama customer', 'Customer', 'Nama Customer') || '';
       const namaCustomer = namaRaw.includes('|') ? namaRaw.split('|')[0].trim() : namaRaw.trim();
@@ -353,7 +346,7 @@ async function analyzeData() {
         cs:               getAny(row, 'CS', 'CSA', 'csa', 'cs') ||
                           parseCSFromInstruksi(getWilayahCol(row, 'instruksipengiriman', 'instruksi')),
         status:           getAny(row, 'Status Akhir', 'StatusAkhir', 'Status', 'status'),
-        resi:             getAny(row, 'No Resi', 'No. Resi', 'Nomor Resi', 'NoResi', 'NomorResi', 'Resi', 'resi', 'no resi'),
+        resi:             getAny(row, 'NO RESI', 'No Resi', 'No. Resi', 'Nomor Resi', 'NoResi', 'NomorResi', 'NORESI', 'Resi', 'resi', 'no resi'),
         provinsi:         getWilayahCol(row, 'provinsi', 'prov'),
         kabupaten:        getWilayahCol(row, 'kabupaten', 'kab', 'kotakab', 'kotamadya'),
         kecamatan:        getWilayahCol(row, 'kecamatan', 'kec'),
