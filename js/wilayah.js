@@ -34,7 +34,8 @@ function renderWilayah() {
   };
   setOpts('wFilterProduk', uniq(srcData.map(r=>r.produk)));
   setOpts('wFilterTeam',   uniq(srcData.map(r=>r.team)));
-  const bulanSet = [...new Set(srcData.map(r=>r.tanggal?.slice(0,7)).filter(Boolean))].sort();
+
+  const bulanSet = [...new Set(srcData.map(r=>r.tanggal?.slice(0,7)).filter(Boolean))].sort().reverse();
   document.getElementById('wFilterBulan').innerHTML = '<option value="">Semua</option>' +
     bulanSet.map(b => { const [y,m]=b.split('-'); return `<option value="${b}">${BULAN_NAMES[+m]} ${y}</option>`; }).join('');
 
@@ -82,6 +83,8 @@ function renderWilayahMap() {
     leafletMap = L.map('wilayahMap', { zoomControl:true, scrollWheelZoom:false }).setView([-2.5,118],4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:18}).addTo(leafletMap);
   }
+  // Force re-render tiles setelah layout berubah
+  setTimeout(() => { leafletMap.invalidateSize(); leafletMap.setView([-2.5,118],4); }, 100);
   const provCount = {}, provOmzet = {};
   wilayahFilter.forEach(r => {
     if (!r.provinsi) return;
