@@ -34,8 +34,12 @@ function renderWilayah() {
     const el = document.getElementById(id);
     el.innerHTML = '<option value="">Semua</option>' + vals.map(v=>`<option value="${v}">${v}</option>`).join('');
   };
-  setOpts('wFilterProduk', uniq(srcData.map(r=>r.produk)));
-  setOpts('wFilterTeam',   uniq(srcData.map(r=>r.team)));
+  setOpts('wFilterProduk',    uniq(srcData.map(r=>r.produk)));
+  setOpts('wFilterTeam',      uniq(srcData.map(r=>r.team)));
+  if (ekspedisiData.length) {
+    setOpts('wFilterCS',        uniq(ekspedisiData.map(r=>r.cs)));
+    setOpts('wFilterEkspedisi', uniq(ekspedisiData.map(r=>r.ekspedisi)));
+  }
 
   // Hanya tampilkan bulan yang benar-benar ada ordernya
   const monthOrders = {};
@@ -66,12 +70,16 @@ function applyWilayahFilters() {
   const fp = document.getElementById('wFilterProduk').value;
   const ft = document.getElementById('wFilterTeam').value;
   const fb = document.getElementById('wFilterBulan').value;
+  const fc = document.getElementById('wFilterCS').value;
+  const fs = document.getElementById('wFilterStatus').value;
 
   const srcData = orderData.length ? orderData : processedData;
   wilayahFilter = srcData.filter(r => {
     if (fp && r.produk !== fp) return false;
     if (ft && r.team   !== ft) return false;
     if (fb && r.tanggal && !r.tanggal.startsWith(fb)) return false;
+    if (fc && r.cs     !== fc) return false;
+    if (fs && classifyStatus(r.status) !== fs) return false;
     return true;
   });
 
@@ -85,7 +93,7 @@ function applyWilayahFilters() {
 }
 
 function resetWilayahFilters() {
-  ['wFilterProduk','wFilterTeam','wFilterBulan'].forEach(id => document.getElementById(id).value='');
+  ['wFilterProduk','wFilterTeam','wFilterBulan','wFilterCS','wFilterEkspedisi','wFilterStatus'].forEach(id => document.getElementById(id).value='');
   applyWilayahFilters();
 }
 
@@ -237,13 +245,18 @@ function renderEkspedisi() {
   const fp = document.getElementById('wFilterProduk').value;
   const ft = document.getElementById('wFilterTeam').value;
   const fb = document.getElementById('wFilterBulan').value;
+  const fc = document.getElementById('wFilterCS').value;
+  const fe = document.getElementById('wFilterEkspedisi').value;
+  const fs = document.getElementById('wFilterStatus').value;
 
-  // Filter berdasarkan drill stack (provinsi/kabupaten/kecamatan aktif)
+  // Filter berdasarkan drill stack + filter bar
   let filtered = ekspedisiData.filter(r => {
-    if (fp && reProduk && r.produk !== fp) return false;
+    if (fp && r.produk !== fp) return false;
     if (ft && r.team !== ft) return false;
     if (fb && r.tanggal && !r.tanggal.startsWith(fb)) return false;
-    // Filter wilayah sesuai drill stack
+    if (fc && r.cs !== fc) return false;
+    if (fe && r.ekspedisi !== fe) return false;
+    if (fs && classifyStatus(r.status) !== fs) return false;
     for (const s of wilayahDrillStack) {
       if ((r[s.level]||'').toLowerCase() !== s.value.toLowerCase()) return false;
     }

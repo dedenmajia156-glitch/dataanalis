@@ -152,7 +152,7 @@ async function loadEkspedisiData() {
   try {
     const rows = await fetchAll((f, t) =>
       sbClient.from('order_data')
-        .select('ekspedisi, status_akhir, tanggal, team, produk, provinsi, kabupaten, kecamatan, kelurahan')
+        .select('ekspedisi, status_akhir, tanggal, team, produk, cs, provinsi, kabupaten, kecamatan, kelurahan')
         .range(f, t)
     );
     ekspedisiData = rows
@@ -162,6 +162,7 @@ async function loadEkspedisiData() {
         tanggal:   r.tanggal||'',
         team:      r.team||'',
         produk:    reProduk(r.produk),
+        cs:        r.cs||'',
         provinsi:  r.provinsi||'',
         kabupaten: r.kabupaten||'',
         kecamatan: r.kecamatan||'',
@@ -779,7 +780,23 @@ function goPage(name) {
 
   // Lazy load + render wilayah saat buka halaman itu
   if (name === 'wilayah') {
-    const doRender = () => { renderWilayah(); loadEkspedisiData().then(renderEkspedisi); };
+    const doRender = () => {
+      renderWilayah();
+      loadEkspedisiData().then(() => {
+        // Isi dropdown ekspedisi setelah data siap
+        const uniq = arr => [...new Set(arr.filter(Boolean))].sort();
+        const el = document.getElementById('wFilterEkspedisi');
+        if (ekspedisiData.length) {
+          const setO = (id, vals) => {
+            const e = document.getElementById(id);
+            if (e) e.innerHTML = '<option value="">Semua</option>' + vals.map(v=>`<option value="${v}">${v}</option>`).join('');
+          };
+          setO('wFilterCS',        uniq(ekspedisiData.map(r=>r.cs).filter(Boolean)));
+          setO('wFilterEkspedisi', uniq(ekspedisiData.map(r=>r.ekspedisi).filter(Boolean)));
+        }
+        renderEkspedisi();
+      });
+    };
     if (!orderDataLoaded) {
       loadOrderData().then(doRender);
     } else {
