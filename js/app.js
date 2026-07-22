@@ -115,7 +115,7 @@ async function loadAllData() {
     if (keluhanRows.length) {
       processedData = keluhanRows.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
-        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
+        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'', ekspedisi: r.ekspedisi||'',
         status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
@@ -205,7 +205,7 @@ async function loadBatch(batchId, batchName) {
     if (orders.length) {
       orderData = orders.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
-        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
+        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'', ekspedisi: r.ekspedisi||'',
         status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
@@ -214,7 +214,7 @@ async function loadBatch(batchId, batchName) {
     if (keluhanRows.length) {
       processedData = keluhanRows.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
-        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'',
+        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'', ekspedisi: r.ekspedisi||'',
         status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
@@ -344,7 +344,7 @@ async function analyzeData() {
         keluhan:          (getCol(row, ck) || '').trim(),
         team:             teamForm,
         cs:               getAny(row, 'CS', 'CSA', 'csa', 'cs') ||
-                          parseCSFromInstruksi(getAny(row, 'Instruksi Pengiriman', 'instruksi pengiriman', 'instruksi', 'Instruksi')),
+                          parseCSFromInstruksi(getWilayahCol(row, 'instruksipengiriman', 'instruksi')),
         status:           getAny(row, 'Status Akhir', 'StatusAkhir', 'Status', 'status'),
         resi:             getAny(row, 'No Resi', 'No. Resi', 'Nomor Resi', 'NoResi', 'NomorResi', 'Resi', 'resi', 'no resi'),
         provinsi:         getWilayahCol(row, 'provinsi', 'prov'),
@@ -352,6 +352,8 @@ async function analyzeData() {
         kecamatan:        getWilayahCol(row, 'kecamatan', 'kec'),
         kelurahan:        getWilayahCol(row, 'kelurahan', 'kel', 'desa'),
         total_pembayaran: parseRupiah(getWilayahCol(row, 'totalpembayaran', 'totalbayar', 'totalbayaran')),
+        ekspedisi:        parseEkspedisi(getWilayahCol(row, 'pembayaran')) ||
+                          parseEkspedisi(getAny(row, 'No', 'no', 'nomor', 'Nomor')),
       };
     });
 
@@ -428,6 +430,7 @@ async function saveToSupabase() {
       kecamatan:        r.kecamatan || null,
       kelurahan:        r.kelurahan || null,
       total_pembayaran: r.total_pembayaran || null,
+      ekspedisi:        r.ekspedisi || null,
     }));
 
     const totalChunks = Math.ceil(orderRows.length / 500);
@@ -453,6 +456,7 @@ async function saveToSupabase() {
       kecamatan:        r.kecamatan || null,
       kelurahan:        r.kelurahan || null,
       total_pembayaran: r.total_pembayaran || null,
+      ekspedisi:        r.ekspedisi || null,
     }));
 
     const totalKChunks = Math.ceil(keluhanRows.length / 500);
@@ -576,9 +580,10 @@ function populateFilters(data) {
       vals.map(v => '<option value="' + v + '">' + v + '</option>').join('');
   };
 
-  setOpts('filterProduk', uniq(data.map(r => r.produk)));
-  setOpts('filterTeam',   uniq(data.map(r => r.team)));
-  setOpts('filterCS',     uniq(data.map(r => r.cs)));
+  setOpts('filterProduk',    uniq(data.map(r => r.produk)));
+  setOpts('filterTeam',      uniq(data.map(r => r.team)));
+  setOpts('filterCS',        uniq(data.map(r => r.cs)));
+  setOpts('filterEkspedisi', uniq(data.map(r => r.ekspedisi)));
 
   const bulanSet = [...new Set(data.map(r => r.tanggal?.slice(0, 7)).filter(Boolean))].sort();
   const filterBulan = document.getElementById('filterBulan');
@@ -592,16 +597,18 @@ function populateFilters(data) {
 }
 
 function applyFilters() {
-  const fp = document.getElementById('filterProduk')?.value || '';
-  const ft = document.getElementById('filterTeam')?.value   || '';
-  const fc = document.getElementById('filterCS')?.value     || '';
-  const fb = document.getElementById('filterBulan')?.value  || '';
+  const fp = document.getElementById('filterProduk')?.value    || '';
+  const ft = document.getElementById('filterTeam')?.value      || '';
+  const fc = document.getElementById('filterCS')?.value        || '';
+  const fe = document.getElementById('filterEkspedisi')?.value || '';
+  const fb = document.getElementById('filterBulan')?.value     || '';
   const fs = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
 
   currentFilter = processedData.filter(r => {
-    if (fp && r.produk !== fp) return false;
-    if (ft && r.team   !== ft) return false;
-    if (fc && r.cs     !== fc) return false;
+    if (fp && r.produk     !== fp) return false;
+    if (ft && r.team       !== ft) return false;
+    if (fc && r.cs         !== fc) return false;
+    if (fe && r.ekspedisi  !== fe) return false;
     if (fb && r.tanggal && !r.tanggal.startsWith(fb)) return false;
     if (fs && !r.keluhan.toLowerCase().includes(fs) && !r.nama.toLowerCase().includes(fs)) return false;
     return true;
@@ -612,7 +619,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  ['filterProduk','filterTeam','filterCS','filterBulan'].forEach(id => {
+  ['filterProduk','filterTeam','filterCS','filterEkspedisi','filterBulan'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -831,6 +838,18 @@ function pickCol(colName, el) {
   document.querySelectorAll('.col-tag').forEach(t => t.classList.remove('selected'));
   el.classList.add('selected');
   toast('Kolom "' + colName + '" dipilih sebagai keluhan');
+}
+
+// ═══ HELPER: parseEkspedisi dari kolom Pembayaran ═══
+// "COD JNE" → "JNE", "COD JNT MENG" → "JNT"
+function parseEkspedisi(pembayaran) {
+  if (!pembayaran) return '';
+  const s = String(pembayaran).toUpperCase();
+  const couriers = ['SICEPAT','ANTERAJA','NINJA','PAXEL','WAHANA','TIKI','GOSEND','GRAB','SAP','LION','REX','IDL','JNE','JNT'];
+  for (const c of couriers) {
+    if (s.includes(c)) return c;
+  }
+  return '';
 }
 
 // ═══ HELPER: parseCS dari kolom Instruksi Pengiriman ═══
