@@ -107,6 +107,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 }
 .btn-icon:hover { color: var(--text); border-color: var(--accent); }
 
+.w-period-btn {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 11px;
+  transition: all 0.18s; font-weight: 600;
+}
+.w-period-btn:hover { border-color: var(--accent); color: var(--accent); }
+.w-period-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 .content { padding: 20px 28px 28px; flex: 1; margin-top: 56px; }
 .page-heading {
   margin-bottom: 18px;
