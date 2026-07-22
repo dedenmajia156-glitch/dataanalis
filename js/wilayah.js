@@ -125,10 +125,14 @@ function renderWilayahTable() {
   const groupMap = {};
   data.forEach(r => {
     const key = (r[level]||'').trim() || '(Tidak Ada Data)';
-    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, produkCount:{} };
-    groupMap[key].order += r.total_order||1;
+    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, delivered:0, rts:0, produkCount:{} };
+    const qty = r.total_order||1;
+    groupMap[key].order += qty;
     groupMap[key].omzet += r.total_pembayaran||0;
-    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+(r.total_order||1);
+    const cls = classifyStatus(r.status);
+    if (cls === 'delivered') groupMap[key].delivered += qty;
+    else if (cls === 'rts')  groupMap[key].rts       += qty;
+    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+qty;
   });
 
   const sorted = Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order);
