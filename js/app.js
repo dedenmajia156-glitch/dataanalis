@@ -173,8 +173,19 @@ async function loadAllData() {
   }
 }
 
-// ═══ LOAD ORDER DATA (lazy — pakai RPC agregasi) ═══
+// ═══ LOAD ORDER DATA (lazy — default 1 bulan terakhir, Semua pakai RPC) ═══
 let orderDataLoaded = false;
+
+function mapOrderRow(r) {
+  return {
+    provinsi: r.provinsi||'', kabupaten: r.kabupaten||'',
+    kecamatan: r.kecamatan||'', kelurahan: r.kelurahan||'',
+    produk: reProduk(r.produk), team: r.team||'',
+    tanggal: r.tanggal||'', status: r.status_akhir||'',
+    total_order: 1,
+    total_pembayaran: parseRupiah(r.total_pembayaran),
+  };
+}
 
 function mapRpcRow(r) {
   return {
@@ -187,14 +198,27 @@ function mapRpcRow(r) {
   };
 }
 
-async function loadOrderData() {
+async function loadOrderData(mode) {
+  // mode: 'bulan' (default, 1 bulan terakhir) | 'semua' (RPC semua data)
   if (!sbClient || orderDataLoaded) return;
   try {
-    toast('Memuat data wilayah...');
-    const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
-    orderData = rows.map(mapRpcRow);
+    if (mode === 'semua') {
+      toast('Memuat semua data wilayah...');
+      const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
+      orderData = rows.map(mapRpcRow);
+    } else {
+      toast('Memuat data wilayah bulan ini...');
+      const since = new Date();
+      since.setMonth(since.getMonth() - 1);
+      const sinceStr = since.toISOString().slice(0, 10);
+      const rows = await fetchAll(
+        (f, t) => sbClient.from('order_data').select('*').gte('tanggal', sinceStr).range(f, t),
+        ()      => sbClient.from('order_data').select('*', { count: 'exact', head: true }).gte('tanggal', sinceStr)
+      );
+      orderData = rows.map(mapOrderRow);
+    }
     orderDataLoaded = true;
-    toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' kombinasi area');
+    toast('Data wilayah siap — ' + orderData.length.toLocaleString() + (mode === 'semua' ? ' kombinasi area' : ' order'));
   } catch(e) {
     console.warn('loadOrderData error:', e);
     toast('Gagal memuat data wilayah: ' + errMsg(e), 'err');
@@ -357,7 +381,8 @@ async function analyzeData() {
         produk:           resolveProduk(namaRaw),
         keluhan:          (getCol(row, ck) || '').trim(),
         team:             teamForm,
-        cs:               getAny(row, 'CS', 'CSA', 'csa', 'cs'),
+        cs:               getAny(row, 'CS', 'CSA', 'csa', 'cs') ||
+                          parseCSFromInstruksi(getAny(row, 'Instruksi Pengiriman', 'instruksi pengiriman', 'instruksi', 'Instruksi')),
         status:           getAny(row, 'Status Akhir', 'StatusAkhir', 'Status', 'status'),
         resi:             getAny(row, 'No Resi', 'No. Resi', 'Nomor Resi', 'NoResi', 'NomorResi', 'Resi', 'resi', 'no resi'),
         provinsi:         getWilayahCol(row, 'provinsi', 'prov'),
@@ -844,6 +869,14 @@ function pickCol(colName, el) {
   document.querySelectorAll('.col-tag').forEach(t => t.classList.remove('selected'));
   el.classList.add('selected');
   toast('Kolom "' + colName + '" dipilih sebagai keluhan');
+}
+
+// ═══ HELPER: parseCS dari kolom Instruksi Pengiriman ═══
+// "Pengirim CS Sari/Adv.Ahmad/Mufid" → "CS Sari"
+function parseCSFromInstruksi(instruksi) {
+  if (!instruksi) return '';
+  const m = String(instruksi).match(/\bCS\s+([^\/,]+)/i);
+  return m ? ('CS ' + m[1].trim()) : '';
 }
 
 // ═══ HELPER: getCol ═══

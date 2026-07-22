@@ -42,6 +42,18 @@ function renderWilayah() {
   applyWilayahFilters();
 }
 
+async function onWilayahBulanChange() {
+  const val = document.getElementById('wFilterBulan').value;
+  if (val === '') {
+    // "Semua" dipilih → load semua via RPC kalau belum
+    orderDataLoaded = false;
+    await loadOrderData('semua');
+    renderWilayah();
+    return;
+  }
+  applyWilayahFilters();
+}
+
 function applyWilayahFilters() {
   const fp = document.getElementById('wFilterProduk').value;
   const ft = document.getElementById('wFilterTeam').value;
