@@ -152,7 +152,7 @@ async function loadEkspedisiData() {
   try {
     const rows = await fetchAll((f, t) =>
       sbClient.from('order_data')
-        .select('ekspedisi, status_akhir, tanggal, team, produk, cs, provinsi, kabupaten, kecamatan, kelurahan')
+        .select('ekspedisi, status_akhir, tanggal, team, produk, cs, total_pembayaran, provinsi, kabupaten, kecamatan, kelurahan')
         .range(f, t)
     );
     ekspedisiData = rows
@@ -162,7 +162,8 @@ async function loadEkspedisiData() {
         tanggal:   r.tanggal||'',
         team:      r.team||'',
         produk:    reProduk(r.produk),
-        cs:        r.cs||'',
+        cs:               r.cs||'',
+        total_pembayaran: parseRupiah(r.total_pembayaran),
         provinsi:  r.provinsi||'',
         kabupaten: r.kabupaten||'',
         kecamatan: r.kecamatan||'',
