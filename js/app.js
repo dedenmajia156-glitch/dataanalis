@@ -332,6 +332,13 @@ async function analyzeData() {
   toast('Memproses data...');
 
   try {
+    // Debug — hapus setelah dicek
+    if (rawData.length) {
+      const r0 = rawData[0];
+      console.log('[DEBUG] Semua kolom:', Object.keys(r0));
+      toast('[DEBUG] Kolom: ' + Object.keys(r0).join(' | '), 'warn');
+    }
+
     const rawMapped = rawData.map(row => {
       const namaRaw = getAny(row, 'Nama', 'nama', 'NamaCustomer', 'nama customer', 'Customer', 'Nama Customer') || '';
       const namaCustomer = namaRaw.includes('|') ? namaRaw.split('|')[0].trim() : namaRaw.trim();
@@ -583,7 +590,6 @@ function populateFilters(data) {
   setOpts('filterProduk',    uniq(data.map(r => r.produk)));
   setOpts('filterTeam',      uniq(data.map(r => r.team)));
   setOpts('filterCS',        uniq(data.map(r => r.cs)));
-  setOpts('filterEkspedisi', uniq(data.map(r => r.ekspedisi)));
 
   const bulanSet = [...new Set(data.map(r => r.tanggal?.slice(0, 7)).filter(Boolean))].sort();
   const filterBulan = document.getElementById('filterBulan');
@@ -600,7 +606,6 @@ function applyFilters() {
   const fp = document.getElementById('filterProduk')?.value    || '';
   const ft = document.getElementById('filterTeam')?.value      || '';
   const fc = document.getElementById('filterCS')?.value        || '';
-  const fe = document.getElementById('filterEkspedisi')?.value || '';
   const fb = document.getElementById('filterBulan')?.value     || '';
   const fs = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
 
@@ -608,7 +613,6 @@ function applyFilters() {
     if (fp && r.produk     !== fp) return false;
     if (ft && r.team       !== ft) return false;
     if (fc && r.cs         !== fc) return false;
-    if (fe && r.ekspedisi  !== fe) return false;
     if (fb && r.tanggal && !r.tanggal.startsWith(fb)) return false;
     if (fs && !r.keluhan.toLowerCase().includes(fs) && !r.nama.toLowerCase().includes(fs)) return false;
     return true;
@@ -619,7 +623,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  ['filterProduk','filterTeam','filterCS','filterEkspedisi','filterBulan'].forEach(id => {
+  ['filterProduk','filterTeam','filterCS','filterBulan'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
