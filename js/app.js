@@ -91,45 +91,15 @@ function reProduk(p) {
 }
 
 // ═══ HELPER: fetch semua rows pakai pagination (bypass limit 1000 Supabase) ═══
-async function fetchAll(queryFn, countFn) {
+async function fetchAll(queryFn) {
   const PAGE = 1000;
-
-  // Jika ada countFn: ambil total dulu lalu parallel fetch semua page sekaligus
-  if (countFn) {
-    try {
-      const { count, error: ce } = await countFn();
-      if (!ce && count > 0) {
-        const pages = Math.ceil(count / PAGE);
-        const results = await Promise.all(
-          Array.from({ length: pages }, (_, i) => queryFn(i * PAGE, (i + 1) * PAGE - 1))
-        );
-        let all = [];
-        for (const { data, error } of results) {
-          if (error) throw error;
-          if (data) all = all.concat(data);
-        }
-        return all;
-      }
-    } catch {}
-  }
-
-  // Fallback (RPC / tanpa count): parallel batch 5 page sekaligus
-  const PARALLEL = 5;
   let all = [], from = 0;
   while (true) {
-    const batch = await Promise.all(
-      Array.from({ length: PARALLEL }, (_, i) =>
-        queryFn(from + i * PAGE, from + i * PAGE + PAGE - 1)
-      )
-    );
-    let done = false;
-    for (const { data, error } of batch) {
-      if (error) throw error;
-      if (data?.length) all = all.concat(data);
-      if (!data || data.length < PAGE) { done = true; break; }
-    }
-    from += PARALLEL * PAGE;
-    if (done) break;
+    const { data, error } = await queryFn(from, from + PAGE - 1);
+    if (error) throw error;
+    if (data?.length) all = all.concat(data);
+    if (!data || data.length < PAGE) break;
+    from += PAGE;
   }
   return all;
 }
@@ -140,8 +110,7 @@ async function loadAllData() {
   try {
     toast('Memuat data keluhan...');
     const keluhanRows = await fetchAll(
-      (f, t) => sbClient.from('keluhan_data').select('*').order('created_at', { ascending: true }).range(f, t),
-      ()      => sbClient.from('keluhan_data').select('*', { count: 'exact', head: true })
+      (f, t) => sbClient.from('keluhan_data').select('*').order('created_at', { ascending: true }).range(f, t)
     );
     if (keluhanRows.length) {
       processedData = keluhanRows.map(r => ({
@@ -212,8 +181,7 @@ async function loadOrderData(mode) {
       since.setMonth(since.getMonth() - 1);
       const sinceStr = since.toISOString().slice(0, 10);
       const rows = await fetchAll(
-        (f, t) => sbClient.from('order_data').select('*').gte('tanggal', sinceStr).range(f, t),
-        ()      => sbClient.from('order_data').select('*', { count: 'exact', head: true }).gte('tanggal', sinceStr)
+        (f, t) => sbClient.from('order_data').select('*').gte('tanggal', sinceStr).range(f, t)
       );
       orderData = rows.map(mapOrderRow);
     }
@@ -231,14 +199,8 @@ async function loadBatch(batchId, batchName) {
   try {
     // Load order_data + keluhan_data for this batch — parallel
     const [orders, keluhanRows] = await Promise.all([
-      fetchAll(
-        (f, t) => sbClient.from('order_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true }).range(f, t),
-        ()      => sbClient.from('order_data').select('*', { count: 'exact', head: true }).eq('batch_id', batchId)
-      ),
-      fetchAll(
-        (f, t) => sbClient.from('keluhan_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true }).range(f, t),
-        ()      => sbClient.from('keluhan_data').select('*', { count: 'exact', head: true }).eq('batch_id', batchId)
-      ),
+      fetchAll((f, t) => sbClient.from('order_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true }).range(f, t)),
+      fetchAll((f, t) => sbClient.from('keluhan_data').select('*').eq('batch_id', batchId).order('created_at', { ascending: true }).range(f, t)),
     ]);
     if (orders.length) {
       orderData = orders.map(r => ({
