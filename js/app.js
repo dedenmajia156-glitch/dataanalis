@@ -151,25 +151,22 @@ async function loadEkspedisiData() {
   if (!sbClient || ekspedisiDataLoaded) return;
   try {
     const rows = await fetchAll((f, t) =>
-      sbClient.from('order_data')
-        .select('ekspedisi, status_akhir, tanggal, team, produk, cs, total_pembayaran, provinsi, kabupaten, kecamatan, kelurahan')
-        .range(f, t)
+      sbClient.rpc('get_ekspedisi_stats').range(f, t)
     );
-    ekspedisiData = rows
-      .map(r => ({
-        ekspedisi: (r.ekspedisi||'').toUpperCase().trim(),
-        status:    r.status_akhir||'',
-        tanggal:   r.tanggal||'',
-        team:      r.team||'',
-        produk:    reProduk(r.produk),
-        cs:               normalizeCS(r.cs),
-        total_pembayaran: parseRupiah(r.total_pembayaran),
-        provinsi:  r.provinsi||'',
-        kabupaten: r.kabupaten||'',
-        kecamatan: r.kecamatan||'',
-        kelurahan: r.kelurahan||'',
-      }))
-      .filter(r => r.ekspedisi);
+    ekspedisiData = rows.map(r => ({
+      ekspedisi:   (r.ekspedisi||'').toUpperCase().trim(),
+      cs:          normalizeCS(r.cs),
+      team:        r.team||'',
+      produk:      reProduk(r.produk),
+      provinsi:    r.provinsi||'',
+      kabupaten:   r.kabupaten||'',
+      kecamatan:   r.kecamatan||'',
+      tanggal:     r.bulan ? r.bulan + '-01' : '',
+      total_order: Number(r.total_order)||0,
+      total_qty:   Number(r.total_qty)||0,
+      delivered:   Number(r.delivered)||0,
+      rts:         Number(r.rts)||0,
+    }));
     ekspedisiDataLoaded = true;
   } catch(e) {
     console.warn('loadEkspedisiData error:', e);

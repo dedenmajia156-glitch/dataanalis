@@ -78,7 +78,7 @@ function applyWilayahFilters() {
   // Kalau tidak → pakai orderData dari RPC (agregat, lebih cepat)
   const useEkspedisiSrc = (fc || fe) && ekspedisiData.length;
   const srcData = useEkspedisiSrc
-    ? ekspedisiData.map(r => ({ ...r, total_order: 1 }))
+    ? ekspedisiData
     : (orderData.length ? orderData : processedData);
 
   wilayahFilter = srcData.filter(r => {
@@ -279,15 +279,15 @@ function renderEkspedisi() {
   const ctxText = ctxParts.length ? ctxParts.join(' › ') : 'Semua Wilayah';
   document.getElementById('ekspedisiContext').textContent = ctxText;
 
-  // Agregasi per ekspedisi
+  // Agregasi per ekspedisi (data sudah pre-aggregated dari RPC)
   const map = {};
   filtered.forEach(r => {
     const key = r.ekspedisi;
-    if (!map[key]) map[key] = { order:0, delivered:0, rts:0 };
-    map[key].order++;
-    const cls = classifyStatus(r.status);
-    if (cls === 'delivered') map[key].delivered++;
-    else if (cls === 'rts')  map[key].rts++;
+    if (!map[key]) map[key] = { order:0, qty:0, delivered:0, rts:0 };
+    map[key].order     += r.total_order||0;
+    map[key].qty       += r.total_qty||0;
+    map[key].delivered += r.delivered||0;
+    map[key].rts       += r.rts||0;
   });
 
   const sorted = Object.entries(map).sort((a,b) => b[1].order - a[1].order);
@@ -305,6 +305,7 @@ function renderEkspedisi() {
     return `<tr>`+
       `<td><strong>${name}</strong></td>`+
       `<td style="font-weight:700">${d.order.toLocaleString()}</td>`+
+      `<td style="color:var(--accent);font-weight:600">${d.qty.toLocaleString()}</td>`+
       `<td><span style="color:#22c55e;font-weight:600">${d.delivered.toLocaleString()}</span></td>`+
       `<td><span class="badge" style="background:rgba(34,197,94,0.15);color:#16a34a">${pctDeliv}%</span></td>`+
       `<td><span style="color:#ef4444;font-weight:600">${d.rts.toLocaleString()}</span></td>`+
