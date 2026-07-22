@@ -354,21 +354,13 @@
           <div class="stat-card s3"><div class="stat-icon">🏙️</div><div class="stat-val" id="wStatKab">0</div><div class="stat-label">Kabupaten Tercakup</div></div>
           <div class="stat-card s4"><div class="stat-icon">📍</div><div class="stat-val" id="wStatProv">0</div><div class="stat-label">Provinsi Tercakup</div></div>
         </div>
-        <div class="filter-bar" style="margin-bottom:16px;align-items:flex-end">
-          <div class="field">
-            <label>Periode Data</label>
-            <div style="display:flex;gap:6px;margin-top:4px">
-              <button class="w-period-btn active" data-m="1" onclick="setWilayahPeriod(1)">1 Bulan</button>
-              <button class="w-period-btn" data-m="3" onclick="setWilayahPeriod(3)">3 Bulan</button>
-              <button class="w-period-btn" data-m="0" onclick="setWilayahPeriod(0)">Semua</button>
-            </div>
-            <span id="bg-wilayah-status" style="display:none;font-size:10px;color:var(--muted);margin-top:4px">⏳ Memuat data semua bulan di background...</span>
-          </div>
+        <div class="filter-bar" style="margin-bottom:16px">
           <div class="field"><label>Produk</label><select id="wFilterProduk" onchange="applyWilayahFilters()"><option value="">Semua</option></select></div>
           <div class="field"><label>Team</label><select id="wFilterTeam" onchange="applyWilayahFilters()"><option value="">Semua</option></select></div>
-          <div class="field"><label>Bulan</label><select id="wFilterBulan" onchange="applyWilayahFilters()"><option value="">Semua</option></select></div>
+          <div class="field"><label>Bulan</label><select id="wFilterBulan" onchange="onWilayahBulanChange()"><option value="">Semua</option></select></div>
           <button class="btn btn-outline" onclick="resetWilayahFilters()" style="font-size:12px">↺ Reset</button>
         </div>
+        <div id="bg-wilayah-status" style="display:none;font-size:11px;color:var(--muted);margin:-8px 0 12px">⏳ Memuat data bulan lain di background...</div>
         <div class="chart-card" style="margin-bottom:16px;padding:16px">
           <div class="chart-title"><span>🗺️</span> Peta Persebaran Order</div>
           <div id="wilayahMap" style="height:420px;border-radius:8px;z-index:1"></div>
