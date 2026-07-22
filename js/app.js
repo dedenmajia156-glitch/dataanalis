@@ -144,6 +144,35 @@ async function loadAllData() {
 
 // ═══ LOAD ORDER DATA (lazy — default 1 bulan terakhir, Semua pakai RPC) ═══
 let orderDataLoaded = false;
+let ekspedisiData = [];
+let ekspedisiDataLoaded = false;
+
+async function loadEkspedisiData() {
+  if (!sbClient || ekspedisiDataLoaded) return;
+  try {
+    const rows = await fetchAll((f, t) =>
+      sbClient.from('order_data')
+        .select('ekspedisi, status_akhir, tanggal, team, produk, provinsi, kabupaten, kecamatan, kelurahan')
+        .range(f, t)
+    );
+    ekspedisiData = rows
+      .map(r => ({
+        ekspedisi: (r.ekspedisi||'').toUpperCase().trim(),
+        status:    r.status_akhir||'',
+        tanggal:   r.tanggal||'',
+        team:      r.team||'',
+        produk:    reProduk(r.produk),
+        provinsi:  r.provinsi||'',
+        kabupaten: r.kabupaten||'',
+        kecamatan: r.kecamatan||'',
+        kelurahan: r.kelurahan||'',
+      }))
+      .filter(r => r.ekspedisi);
+    ekspedisiDataLoaded = true;
+  } catch(e) {
+    console.warn('loadEkspedisiData error:', e);
+  }
+}
 
 function mapOrderRow(r) {
   return {
@@ -750,10 +779,11 @@ function goPage(name) {
 
   // Lazy load + render wilayah saat buka halaman itu
   if (name === 'wilayah') {
+    const doRender = () => { renderWilayah(); loadEkspedisiData().then(renderEkspedisi); };
     if (!orderDataLoaded) {
-      loadOrderData().then(() => renderWilayah());
+      loadOrderData().then(doRender);
     } else {
-      renderWilayah();
+      doRender();
     }
   }
 }

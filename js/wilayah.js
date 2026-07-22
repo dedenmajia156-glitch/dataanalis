@@ -81,6 +81,7 @@ function applyWilayahFilters() {
   updateWilayahStats();
   renderWilayahMap();
   renderWilayahTable();
+  renderEkspedisi();
 }
 
 function resetWilayahFilters() {
@@ -215,6 +216,7 @@ function drillTo(level, value) {
   wilayahDrillLevel = level;
   wilayahPage = 1;
   renderWilayahTable();
+  renderEkspedisi();
 }
 
 function drillUp() {
@@ -223,6 +225,69 @@ function drillUp() {
   wilayahDrillLevel = prev.level;
   wilayahPage = 1;
   renderWilayahTable();
+  renderEkspedisi();
+}
+
+// ─── ANALISIS EKSPEDISI ───
+function renderEkspedisi() {
+  const section = document.getElementById('ekspedisiSection');
+  if (!ekspedisiData || !ekspedisiData.length) { section.style.display = 'none'; return; }
+
+  // Ambil filter aktif
+  const fp = document.getElementById('wFilterProduk').value;
+  const ft = document.getElementById('wFilterTeam').value;
+  const fb = document.getElementById('wFilterBulan').value;
+
+  // Filter berdasarkan drill stack (provinsi/kabupaten/kecamatan aktif)
+  let filtered = ekspedisiData.filter(r => {
+    if (fp && reProduk && r.produk !== fp) return false;
+    if (ft && r.team !== ft) return false;
+    if (fb && r.tanggal && !r.tanggal.startsWith(fb)) return false;
+    // Filter wilayah sesuai drill stack
+    for (const s of wilayahDrillStack) {
+      if ((r[s.level]||'').toLowerCase() !== s.value.toLowerCase()) return false;
+    }
+    return true;
+  });
+
+  // Konteks label
+  const levelLabel = {provinsi:'Provinsi',kabupaten:'Kabupaten/Kota',kecamatan:'Kecamatan',kelurahan:'Kelurahan'};
+  const ctxParts = wilayahDrillStack.map(s => s.value);
+  const ctxText = ctxParts.length ? ctxParts.join(' › ') : 'Semua Wilayah';
+  document.getElementById('ekspedisiContext').textContent = ctxText;
+
+  // Agregasi per ekspedisi
+  const map = {};
+  filtered.forEach(r => {
+    const key = r.ekspedisi;
+    if (!map[key]) map[key] = { order:0, delivered:0, rts:0 };
+    map[key].order++;
+    const cls = classifyStatus(r.status);
+    if (cls === 'delivered') map[key].delivered++;
+    else if (cls === 'rts')  map[key].rts++;
+  });
+
+  const sorted = Object.entries(map).sort((a,b) => b[1].order - a[1].order);
+
+  if (!sorted.length) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+  document.getElementById('ekspedisiTbody').innerHTML = sorted.map(([name, d]) => {
+    const pctDeliv = d.order ? Math.round(d.delivered / d.order * 100) : 0;
+    const pctRts   = d.order ? Math.round(d.rts / d.order * 100) : 0;
+    const rtsColor = pctRts >= 15 ? '#ef4444' : pctRts >= 8 ? '#f59e0b' : '#22c55e';
+    return `<tr>`+
+      `<td><strong>${name}</strong></td>`+
+      `<td style="font-weight:700">${d.order.toLocaleString()}</td>`+
+      `<td><span style="color:#22c55e;font-weight:600">${d.delivered.toLocaleString()}</span></td>`+
+      `<td><span class="badge" style="background:rgba(34,197,94,0.15);color:#16a34a">${pctDeliv}%</span></td>`+
+      `<td><span style="color:#ef4444;font-weight:600">${d.rts.toLocaleString()}</span></td>`+
+      `<td><span class="badge" style="background:rgba(239,68,68,0.15);color:${rtsColor};font-weight:700">${pctRts}%</span></td>`+
+      `</tr>`;
+  }).join('');
 }
 
 // ─── helper: klasifikasi status pengiriman ───
