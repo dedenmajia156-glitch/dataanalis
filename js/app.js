@@ -115,7 +115,7 @@ async function loadAllData() {
     if (keluhanRows.length) {
       processedData = keluhanRows.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
-        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'', ekspedisi: r.ekspedisi||'',
+        keluhan: r.keluhan||'', team: r.team||'', cs: normalizeCS(r.cs), ekspedisi: r.ekspedisi||'',
         status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
@@ -162,7 +162,7 @@ async function loadEkspedisiData() {
         tanggal:   r.tanggal||'',
         team:      r.team||'',
         produk:    reProduk(r.produk),
-        cs:               r.cs||'',
+        cs:               normalizeCS(r.cs),
         total_pembayaran: parseRupiah(r.total_pembayaran),
         provinsi:  r.provinsi||'',
         kabupaten: r.kabupaten||'',
@@ -194,6 +194,7 @@ function mapRpcRow(r) {
     produk: reProduk(r.produk), team: r.team||'',
     tanggal: r.bulan ? r.bulan + '-01' : '', status: r.status_akhir||'',
     total_order: Number(r.total_order)||0,
+    total_qty: Number(r.total_qty)||0,
     total_pembayaran: Number(r.total_pembayaran)||0,
   };
 }
@@ -228,7 +229,7 @@ async function loadBatch(batchId, batchName) {
     if (orders.length) {
       orderData = orders.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
-        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'', ekspedisi: r.ekspedisi||'',
+        keluhan: r.keluhan||'', team: r.team||'', cs: normalizeCS(r.cs), ekspedisi: r.ekspedisi||'',
         status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
@@ -237,7 +238,7 @@ async function loadBatch(batchId, batchName) {
     if (keluhanRows.length) {
       processedData = keluhanRows.map(r => ({
         tanggal: r.tanggal||'', nama: r.nama||'', produk: reProduk(r.produk),
-        keluhan: r.keluhan||'', team: r.team||'', cs: r.cs||'', ekspedisi: r.ekspedisi||'',
+        keluhan: r.keluhan||'', team: r.team||'', cs: normalizeCS(r.cs), ekspedisi: r.ekspedisi||'',
         status: r.status_akhir||'', resi: r.resi||'', provinsi: r.provinsi||'',
         kabupaten: r.kabupaten||'', kecamatan: r.kecamatan||'',
         kelurahan: r.kelurahan||'', total_pembayaran: parseRupiah(r.total_pembayaran),
@@ -412,6 +413,7 @@ async function analyzeData() {
         kecamatan:        getWilayahCol(row, 'kecamatan', 'kec'),
         kelurahan:        getWilayahCol(row, 'kelurahan', 'kel', 'desa'),
         total_pembayaran: parseRupiah(getWilayahCol(row, 'totalpembayaran', 'totalbayar', 'totalbayaran')),
+        quantity:         parseInt(getAny(row, 'Quantity', 'quantity', 'qty', 'QTY', 'Qty'), 10) || 1,
         ekspedisi:        parseEkspedisi(getWilayahCol(row, 'pembayaran')) ||
                           parseEkspedisi(getAny(row, 'No', 'no', 'nomor', 'Nomor')),
       };
@@ -490,6 +492,7 @@ async function saveToSupabase() {
       kecamatan:        r.kecamatan || null,
       kelurahan:        r.kelurahan || null,
       total_pembayaran: r.total_pembayaran || null,
+      quantity:         r.quantity || 1,
       ekspedisi:        r.ekspedisi || null,
     }));
 
@@ -746,7 +749,7 @@ function goPage(name) {
   const titles = {
     upload:   'Upload Data',
     analisis: 'Analisis Keluhan',
-    wilayah:  'Analisis Wilayah',
+    wilayah:  'Analisis Order',
     riwayat:  'Riwayat Upload',
   };
 
@@ -928,10 +931,21 @@ function parseEkspedisi(pembayaran) {
 
 // ═══ HELPER: parseCS dari kolom Instruksi Pengiriman ═══
 // "Pengirim CS Sari/Adv.Ahmad/Mufid" → "CS Sari"
+function normalizeCS(s) {
+  if (!s) return '';
+  const t = s.trim();
+  const m = t.match(/^CS\s+(.+)/i);
+  if (m) {
+    const name = m[1].trim();
+    return 'CS ' + name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  }
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+}
+
 function parseCSFromInstruksi(instruksi) {
   if (!instruksi) return '';
   const m = String(instruksi).match(/\bCS\s+([^\/,]+)/i);
-  return m ? ('CS ' + m[1].trim()) : '';
+  return m ? normalizeCS('CS ' + m[1].trim()) : '';
 }
 
 // ═══ HELPER: getCol ═══

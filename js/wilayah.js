@@ -166,14 +166,15 @@ function renderWilayahTable() {
   const groupMap = {};
   data.forEach(r => {
     const key = (r[level]||'').trim() || '(Tidak Ada Data)';
-    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, delivered:0, rts:0, produkCount:{} };
-    const qty = r.total_order||1;
-    groupMap[key].order += qty;
+    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{} };
+    const cnt = r.total_order||1;
+    groupMap[key].order += cnt;
+    groupMap[key].qty   += r.total_qty || r.quantity || cnt;
     groupMap[key].omzet += r.total_pembayaran||0;
     const cls = classifyStatus(r.status);
-    if (cls === 'delivered') groupMap[key].delivered += qty;
-    else if (cls === 'rts')  groupMap[key].rts       += qty;
-    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+qty;
+    if (cls === 'delivered') groupMap[key].delivered += cnt;
+    else if (cls === 'rts')  groupMap[key].rts       += cnt;
+    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+cnt;
   });
 
   const sorted = Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order);
@@ -199,12 +200,13 @@ function renderWilayahTable() {
     return `<tr style="cursor:${canDrill?'pointer':'default'}" ${canDrill?`onclick="drillTo('${nextLevel}','${safeN}')"`:''}>`+
       `<td style="font-weight:600">${canDrill?'▶ ':''}${name}</td>`+
       `<td style="font-weight:700">${d.order.toLocaleString()}</td>`+
+      `<td style="font-weight:700;color:var(--accent)">${d.qty.toLocaleString()}</td>`+
       `<td><span style="color:#22c55e;font-weight:600">${d.delivered.toLocaleString()}</span> <span style="font-size:11px;color:var(--muted)">(${pctDeliv}%)</span></td>`+
       `<td><span style="color:#ef4444;font-weight:600">${d.rts.toLocaleString()}</span> <span style="font-size:11px;color:var(--muted)">(${pctRts}%)</span></td>`+
       `<td>${fmtRp(d.omzet)}</td>`+
       `<td><span class="badge b-purple">${terlaris}</span></td>`+
       `</tr>`;
-  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:40px">Tidak ada data wilayah</td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:40px">Tidak ada data wilayah</td></tr>';
 
   // Pagination
   const pgWrap = document.getElementById('wPgWrap');
@@ -337,14 +339,15 @@ function getCurrentViewData() {
   const groupMap = {};
   data.forEach(r => {
     const key = (r[level]||'').trim() || '(Tidak Ada Data)';
-    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, delivered:0, rts:0, produkCount:{} };
-    const qty = r.total_order||1;
-    groupMap[key].order += qty;
+    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{} };
+    const cnt = r.total_order||1;
+    groupMap[key].order += cnt;
+    groupMap[key].qty   += r.total_qty || r.quantity || cnt;
     groupMap[key].omzet += r.total_pembayaran||0;
     const cls = classifyStatus(r.status);
-    if (cls === 'delivered') groupMap[key].delivered += qty;
-    else if (cls === 'rts')  groupMap[key].rts       += qty;
-    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+qty;
+    if (cls === 'delivered') groupMap[key].delivered += cnt;
+    else if (cls === 'rts')  groupMap[key].rts       += cnt;
+    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+cnt;
   });
   return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([name, d]) => {
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
