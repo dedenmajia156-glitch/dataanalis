@@ -352,7 +352,7 @@ function getCurrentViewData() {
   return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([name, d]) => {
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
     const avg = d.order ? Math.round(d.omzet/d.order) : 0;
-    return { name, order: d.order, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
+    return { name, order: d.order, qty: d.qty, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
   });
 }
 
@@ -364,19 +364,20 @@ function getWilayahLevelData(level) {
     const key = (r[level]||'').trim();
     if (!key) return;
     const parent = parentKey[level] ? (r[parentKey[level]]||'') : null;
-    if (!groupMap[key]) groupMap[key] = { order:0, omzet:0, delivered:0, rts:0, produkCount:{}, parent: parent||'' };
-    const qty = r.total_order||1;
-    groupMap[key].order += qty;
+    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{}, parent: parent||'' };
+    const cnt = r.total_order||1;
+    groupMap[key].order += cnt;
+    groupMap[key].qty   += r.total_qty || r.quantity || cnt;
     groupMap[key].omzet += r.total_pembayaran||0;
     const cls = classifyStatus(r.status);
-    if (cls === 'delivered') groupMap[key].delivered += qty;
-    else if (cls === 'rts')  groupMap[key].rts       += qty;
-    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+qty;
+    if (cls === 'delivered') groupMap[key].delivered += cnt;
+    else if (cls === 'rts')  groupMap[key].rts       += cnt;
+    if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+cnt;
   });
   return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([name, d]) => {
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
     const avg = d.order ? Math.round(d.omzet/d.order) : 0;
-    return { name, parent: d.parent, order: d.order, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
+    return { name, parent: d.parent, order: d.order, qty: d.qty, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
   });
 }
 
@@ -397,6 +398,7 @@ function downloadWilayahExcel() {
       row[labelMap[level]]     = d.name;
       if (parentLbl[level]) row[parentLbl[level]] = d.parent;
       row['Total Order']       = d.order;
+      row['Total Qty']         = d.qty;
       row['Delivered']         = d.delivered;
       row['% Delivered']       = pctDeliv + '%';
       row['RTS']               = d.rts;
@@ -470,13 +472,14 @@ function downloadWilayahPDF() {
   const rows = getCurrentViewData();
   doc.autoTable({
     startY: 37,
-    head: [[ levelLabel[wilayahDrillLevel], 'Total Order', 'Delivered', '% Deliv', 'RTS', '% RTS', 'Total Pembayaran', 'Produk Terlaris' ]],
+    head: [[ levelLabel[wilayahDrillLevel], 'Total Order', 'Total Qty', 'Delivered', '% Deliv', 'RTS', '% RTS', 'Total Pembayaran', 'Produk Terlaris' ]],
     body: rows.map(r => {
       const pctDeliv = r.order ? Math.round(r.delivered/r.order*100) : 0;
       const pctRts   = r.order ? Math.round(r.rts/r.order*100) : 0;
       return [
         r.name,
         r.order.toLocaleString('id-ID'),
+        (r.qty||0).toLocaleString('id-ID'),
         r.delivered.toLocaleString('id-ID'),
         pctDeliv + '%',
         r.rts.toLocaleString('id-ID'),
@@ -489,14 +492,15 @@ function downloadWilayahPDF() {
     headStyles:         { fillColor: [124,111,247], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245,244,255] },
     columnStyles: {
-      0: { cellWidth: 52 },
-      1: { cellWidth: 22, halign: 'right' },
-      2: { cellWidth: 22, halign: 'right' },
-      3: { cellWidth: 16, halign: 'center' },
-      4: { cellWidth: 18, halign: 'right' },
-      5: { cellWidth: 14, halign: 'center' },
-      6: { cellWidth: 38, halign: 'right' },
-      7: { cellWidth: 'auto' },
+      0: { cellWidth: 48 },
+      1: { cellWidth: 20, halign: 'right' },
+      2: { cellWidth: 18, halign: 'right' },
+      3: { cellWidth: 20, halign: 'right' },
+      4: { cellWidth: 14, halign: 'center' },
+      5: { cellWidth: 16, halign: 'right' },
+      6: { cellWidth: 13, halign: 'center' },
+      7: { cellWidth: 34, halign: 'right' },
+      8: { cellWidth: 'auto' },
     },
     margin: { left: 14, right: 14 }
   });
