@@ -172,6 +172,10 @@ async function loadOrderData() {
   try {
     toast('Memuat data wilayah...');
     const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
+    // DEBUG: lihat bulan apa saja yang ada di RPC
+    const bulanList = [...new Set(rows.map(r => r.bulan).filter(Boolean))].sort();
+    console.log('[DEBUG] Bulan dari RPC get_wilayah_stats:', bulanList);
+    console.log('[DEBUG] Total rows RPC:', rows.length, '| Sample row:', rows[0]);
     orderData = rows.map(mapRpcRow);
     orderDataLoaded = true;
     toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' kombinasi area');
@@ -316,7 +320,7 @@ function autoDetectBulan(rows) {
     let tglRaw = null;
     for (const k of tglKeys) { if (row[k] !== undefined && row[k] !== '') { tglRaw = row[k]; break; } }
     if (!tglRaw) continue;
-    const d = normDate(tglRaw);
+    const d = normDate(tglRaw); // tanpa expectedYM — murni untuk deteksi
     if (!d) continue;
     const ym = d.slice(0, 7); // "YYYY-MM"
     monthCount[ym] = (monthCount[ym] || 0) + 1;
@@ -363,7 +367,7 @@ async function analyzeData() {
       const tglRaw = getAny(row, 'Tanggal', 'tanggal', 'Date', 'date', 'TglOrder', 'Tgl Order');
 
       return {
-        tanggal:          normDate(tglRaw) || bulanVal + '-01',
+        tanggal:          normDate(tglRaw, bulanVal) || bulanVal + '-01',
         nama:             namaCustomer,
         produk:           resolveProduk(namaRaw),
         keluhan:          (getCol(row, ck) || '').trim(),
@@ -899,36 +903,54 @@ function getAny(row, ...names) {
 }
 
 // ═══ HELPER: normDate ═══
-function normDate(val) {
+function normDate(val, expectedYM) {
+  // expectedYM = "YYYY-MM" dari form bulan — dipakai untuk deteksi swap DD/MM vs MM/DD
   if (!val) return null;
-  // If already a Date object (from XLSX with cellDates:true)
+
+  // Jika Date object dari SheetJS (cellDates:true)
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return null;
     const y  = val.getFullYear();
     const mo = String(val.getMonth() + 1).padStart(2, '0');
     const d  = String(val.getDate()).padStart(2, '0');
-    return y + '-' + mo + '-' + d;
+    const result = y + '-' + mo + '-' + d;
+
+    // Deteksi swap: Excel kadang baca "05/01/2026" (DD/MM) jadi "2026-05-01" (MM/DD)
+    // Cirinya: day=01 di result, dan YYYY-MM tidak sesuai expectedYM
+    if (expectedYM && d === '01' && result.slice(0,7) !== expectedYM) {
+      // Coba swap: pakai mo sebagai day, expectedYM sebagai bulan
+      const swappedDay = mo.padStart(2,'0');
+      const [ey, em] = expectedYM.split('-');
+      const candidate = ey + '-' + em + '-' + swappedDay;
+      const swappedDayNum = parseInt(swappedDay, 10);
+      if (swappedDayNum >= 1 && swappedDayNum <= 31) return candidate;
+    }
+    return result;
   }
+
   const s = String(val).trim();
   if (!s) return null;
 
-  // yyyy-mm-dd already
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // yyyy-mm-dd (with or without time)
+  const mISO = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (mISO) return mISO[1];
 
-  // dd/mm/yyyy or dd-mm-yyyy
-  const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  // Ambil bagian tanggal saja (buang waktu: "14/01/2026 07:05:26" → "14/01/2026")
+  const datePart = s.split(/[\s,]+/)[0];
+
+  // dd/mm/yyyy atau dd-mm-yyyy
+  const m1 = datePart.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (m1) {
     const [, d, mo, y] = m1;
     return y + '-' + mo.padStart(2,'0') + '-' + d.padStart(2,'0');
   }
 
-  // Try native Date parse as fallback
-  const dt = new Date(s);
+  // Fallback native parse
+  const dt = new Date(datePart);
   if (!isNaN(dt.getTime())) {
-    const y  = dt.getFullYear();
-    const mo = String(dt.getMonth() + 1).padStart(2, '0');
-    const d  = String(dt.getDate()).padStart(2, '0');
-    return y + '-' + mo + '-' + d;
+    return dt.getFullYear() + '-' +
+           String(dt.getMonth()+1).padStart(2,'0') + '-' +
+           String(dt.getDate()).padStart(2,'0');
   }
 
   return null;
