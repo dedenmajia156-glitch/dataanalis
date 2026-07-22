@@ -367,7 +367,7 @@ async function analyzeData() {
       const tglRaw = getAny(row, 'Tanggal', 'tanggal', 'Date', 'date', 'TglOrder', 'Tgl Order');
 
       return {
-        tanggal:          normDate(tglRaw, bulanVal) || bulanVal + '-01',
+        tanggal:          bulanVal + '-01',
         nama:             namaCustomer,
         produk:           resolveProduk(namaRaw),
         keluhan:          (getCol(row, ck) || '').trim(),
