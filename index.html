@@ -248,12 +248,6 @@
             </select>
           </div>
           <div class="field">
-            <label>Ekspedisi</label>
-            <select id="filterEkspedisi" onchange="applyFilters()">
-              <option value="">Semua</option>
-            </select>
-          </div>
-          <div class="field">
             <label>Bulan</label>
             <select id="filterBulan" onchange="applyFilters()">
               <option value="">Semua</option>
@@ -368,7 +362,7 @@
         </div>
         <div class="chart-card" style="margin-bottom:16px;padding:16px">
           <div class="chart-title"><span>🗺️</span> Peta Persebaran Order</div>
-          <div id="wilayahMap" style="height:420px;border-radius:8px;z-index:1"></div>
+          <div id="wilayahMap" style="height:280px;border-radius:8px;z-index:1"></div>
         </div>
         <div class="table-card">
           <div class="table-toolbar">
@@ -388,6 +382,7 @@
               <tbody id="wilayahTbody"></tbody>
             </table>
           </div>
+          <div class="pagination" id="wPgWrap"></div>
         </div>
       </div>
     </div><!-- end page-wilayah -->
