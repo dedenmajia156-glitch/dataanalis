@@ -173,31 +173,121 @@ async function loadAllData() {
   }
 }
 
-// ═══ LOAD ORDER DATA (lazy — pakai RPC agregasi, jauh lebih cepat) ═══
+// ═══ LOAD ORDER DATA (lazy — default 1 bulan, bg load semua via RPC) ═══
 let orderDataLoaded = false;
-async function loadOrderData() {
-  if (!sbClient || orderDataLoaded) return;
+let wilayahCache   = null;   // null | 'loading' | Array (full RPC)
+let wilayahMonths  = 1;      // periode aktif
+
+function wilayahCutoff(months) {
+  if (!months) return null;
+  const d = new Date();
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
+}
+
+function mapOrderRow(r) {
+  return {
+    provinsi: r.provinsi||'', kabupaten: r.kabupaten||'',
+    kecamatan: r.kecamatan||'', kelurahan: r.kelurahan||'',
+    produk: reProduk(r.produk), team: r.team||'',
+    tanggal: r.tanggal||'', status: r.status_akhir||'',
+    total_order: 1,
+    total_pembayaran: parseRupiah(r.total_pembayaran),
+  };
+}
+
+function mapRpcRow(r) {
+  return {
+    provinsi: r.provinsi||'', kabupaten: r.kabupaten||'',
+    kecamatan: r.kecamatan||'', kelurahan: r.kelurahan||'',
+    produk: reProduk(r.produk), team: r.team||'',
+    tanggal: r.bulan ? r.bulan + '-01' : '', status: r.status_akhir||'',
+    total_order: Number(r.total_order)||0,
+    total_pembayaran: Number(r.total_pembayaran)||0,
+  };
+}
+
+async function loadOrderData(months) {
+  if (!sbClient) return;
+  if (months === undefined) months = wilayahMonths;
+  wilayahMonths = months;
+
+  // "Semua" + cache sudah siap → langsung pakai, no network
+  if (!months && Array.isArray(wilayahCache)) {
+    orderData = wilayahCache;
+    orderDataLoaded = true;
+    return;
+  }
+
+  // "Semua" tapi cache masih loading → tunggu
+  if (!months && wilayahCache === 'loading') {
+    toast('Masih memuat data lama, harap tunggu...', 'warn');
+    return;
+  }
+
   try {
     toast('Memuat data wilayah...');
-    const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
-    orderData = rows.map(r => ({
-      provinsi:         r.provinsi||'',
-      kabupaten:        r.kabupaten||'',
-      kecamatan:        r.kecamatan||'',
-      kelurahan:        r.kelurahan||'',
-      produk:           reProduk(r.produk),
-      team:             r.team||'',
-      tanggal:          r.bulan ? r.bulan + '-01' : '',
-      status:           r.status_akhir||'',
-      total_order:      Number(r.total_order)||0,
-      total_pembayaran: Number(r.total_pembayaran)||0,
-    }));
-    orderDataLoaded = true;
-    toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' kombinasi area');
+
+    if (months) {
+      // Filter 1/3 bulan: query order_data langsung (data kecil, cepat)
+      const since = wilayahCutoff(months);
+      const rows = await fetchAll(
+        (f, t) => sbClient.from('order_data').select('*').gte('tanggal', since).range(f, t),
+        ()      => sbClient.from('order_data').select('*', { count: 'exact', head: true }).gte('tanggal', since)
+      );
+      orderData = rows.map(mapOrderRow);
+      orderDataLoaded = true;
+      toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' order (' + months + ' bulan terakhir)');
+
+      // Langsung kick background load semua bulan via RPC
+      if (wilayahCache === null) startBgWilayah();
+
+    } else {
+      // "Semua": pakai RPC agregasi
+      const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
+      orderData = rows.map(mapRpcRow);
+      wilayahCache = orderData;
+      orderDataLoaded = true;
+      toast('Data wilayah lengkap — ' + orderData.length.toLocaleString() + ' kombinasi area');
+    }
   } catch(e) {
     console.warn('loadOrderData error:', e);
     toast('Gagal memuat data wilayah: ' + errMsg(e), 'err');
   }
+}
+
+async function startBgWilayah() {
+  if (wilayahCache !== null) return;
+  wilayahCache = 'loading';
+  const statusEl = document.getElementById('bg-wilayah-status');
+  if (statusEl) statusEl.style.display = '';
+
+  try {
+    const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
+    wilayahCache = rows.map(mapRpcRow);
+    // Kalau user sudah pindah ke "Semua", apply sekarang
+    if (wilayahMonths === 0) {
+      orderData = wilayahCache;
+      orderDataLoaded = true;
+      renderWilayah();
+    }
+    // Aktifkan tombol Semua
+    const btnSemua = document.querySelector('.w-period-btn[data-m="0"]');
+    if (btnSemua) btnSemua.textContent = 'Semua ✓';
+  } catch(e) {
+    wilayahCache = null;
+  } finally {
+    if (statusEl) statusEl.style.display = 'none';
+  }
+}
+
+async function setWilayahPeriod(months) {
+  document.querySelectorAll('.w-period-btn').forEach(b =>
+    b.classList.toggle('active', +b.dataset.m === months)
+  );
+  orderDataLoaded = false;
+  await loadOrderData(months);
+  renderWilayah();
 }
 
 // ═══ LOAD BATCH ═══
@@ -730,7 +820,7 @@ function goPage(name) {
   // Lazy load + render wilayah saat buka halaman itu
   if (name === 'wilayah') {
     if (!orderDataLoaded) {
-      loadOrderData().then(() => renderWilayah());
+      loadOrderData(wilayahMonths).then(() => renderWilayah());
     } else {
       renderWilayah();
     }
