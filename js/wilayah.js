@@ -6,6 +6,8 @@
 let wilayahFilter = [];
 let wilayahDrillLevel = 'provinsi';
 let wilayahDrillStack = [];
+let wilayahPage = 1;
+const WILAYAH_PAGE_SIZE = 10;
 let leafletMap = null;
 let geoLayer = null;
 
@@ -75,6 +77,7 @@ function applyWilayahFilters() {
 
   wilayahDrillLevel = 'provinsi';
   wilayahDrillStack = [];
+  wilayahPage = 1;
   updateWilayahStats();
   renderWilayahMap();
   renderWilayahTable();
@@ -157,6 +160,10 @@ function renderWilayahTable() {
   });
 
   const sorted = Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / WILAYAH_PAGE_SIZE));
+  if (wilayahPage > totalPages) wilayahPage = 1;
+  const pageData = sorted.slice((wilayahPage-1)*WILAYAH_PAGE_SIZE, wilayahPage*WILAYAH_PAGE_SIZE);
+
   const bcParts = ['Semua Provinsi', ...wilayahDrillStack.map(s=>s.value)];
   document.getElementById('wBreadcrumb').textContent = bcParts.join(' › ');
   document.getElementById('wBtnBack').style.display = wilayahDrillStack.length ? '' : 'none';
@@ -167,7 +174,7 @@ function renderWilayahTable() {
   const canDrill = level !== 'kelurahan';
   const nextLevel = {provinsi:'kabupaten',kabupaten:'kecamatan',kecamatan:'kelurahan'}[level];
 
-  document.getElementById('wilayahTbody').innerHTML = sorted.map(([name,d])=>{
+  document.getElementById('wilayahTbody').innerHTML = pageData.map(([name,d])=>{
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
     const safeN    = name.replace(/'/g,"\\'");
     const pctDeliv = d.order ? Math.round(d.delivered/d.order*100) : 0;
@@ -181,11 +188,32 @@ function renderWilayahTable() {
       `<td><span class="badge b-purple">${terlaris}</span></td>`+
       `</tr>`;
   }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:40px">Tidak ada data wilayah</td></tr>';
+
+  // Pagination
+  const pgWrap = document.getElementById('wPgWrap');
+  if (totalPages <= 1) { pgWrap.innerHTML = ''; return; }
+  let pg = '';
+  pg += `<button class="pg-btn" ${wilayahPage===1?'disabled':''} onclick="wGoPage(${wilayahPage-1})">‹</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    if (totalPages > 7 && Math.abs(i - wilayahPage) > 2 && i !== 1 && i !== totalPages) {
+      if (i === wilayahPage - 3 || i === wilayahPage + 3) pg += `<span class="pg-btn" style="pointer-events:none">…</span>`;
+      continue;
+    }
+    pg += `<button class="pg-btn${i===wilayahPage?' active':''}" onclick="wGoPage(${i})">${i}</button>`;
+  }
+  pg += `<button class="pg-btn" ${wilayahPage===totalPages?'disabled':''} onclick="wGoPage(${wilayahPage+1})">›</button>`;
+  pgWrap.innerHTML = pg;
+}
+
+function wGoPage(p) {
+  wilayahPage = p;
+  renderWilayahTable();
 }
 
 function drillTo(level, value) {
   wilayahDrillStack.push({ level: wilayahDrillLevel, value });
   wilayahDrillLevel = level;
+  wilayahPage = 1;
   renderWilayahTable();
 }
 
@@ -193,6 +221,7 @@ function drillUp() {
   if (!wilayahDrillStack.length) return;
   const prev = wilayahDrillStack.pop();
   wilayahDrillLevel = prev.level;
+  wilayahPage = 1;
   renderWilayahTable();
 }
 
