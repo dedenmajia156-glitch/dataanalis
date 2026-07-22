@@ -167,26 +167,14 @@ function mapRpcRow(r) {
   };
 }
 
-async function loadOrderData(mode) {
-  // mode: 'bulan' (default, 1 bulan terakhir) | 'semua' (RPC semua data)
+async function loadOrderData() {
   if (!sbClient || orderDataLoaded) return;
   try {
-    if (mode === 'semua') {
-      toast('Memuat semua data wilayah...');
-      const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
-      orderData = rows.map(mapRpcRow);
-    } else {
-      toast('Memuat data wilayah bulan ini...');
-      const since = new Date();
-      since.setMonth(since.getMonth() - 1);
-      const sinceStr = since.toISOString().slice(0, 10);
-      const rows = await fetchAll(
-        (f, t) => sbClient.from('order_data').select('*').gte('tanggal', sinceStr).range(f, t)
-      );
-      orderData = rows.map(mapOrderRow);
-    }
+    toast('Memuat data wilayah...');
+    const rows = await fetchAll((f, t) => sbClient.rpc('get_wilayah_stats').range(f, t));
+    orderData = rows.map(mapRpcRow);
     orderDataLoaded = true;
-    toast('Data wilayah siap — ' + orderData.length.toLocaleString() + (mode === 'semua' ? ' kombinasi area' : ' order'));
+    toast('Data wilayah siap — ' + orderData.length.toLocaleString() + ' kombinasi area');
   } catch(e) {
     console.warn('loadOrderData error:', e);
     toast('Gagal memuat data wilayah: ' + errMsg(e), 'err');
@@ -304,6 +292,9 @@ function processFile(file) {
 
       document.getElementById('batchName').value = file.name.replace(/\.[^.]+$/, '');
 
+      // Auto-detect bulan & tahun dari tanggal di file
+      autoDetectBulan(allRows);
+
     } catch(err) {
       setStatus('err', 'Gagal baca file: ' + err.message);
       console.error('processFile error:', err);
@@ -311,6 +302,40 @@ function processFile(file) {
   };
 
   reader.readAsArrayBuffer(file);
+}
+
+// ═══ AUTO DETECT BULAN DARI FILE ═══
+function autoDetectBulan(rows) {
+  // Ambil kolom tanggal dari beberapa baris pertama
+  const tglKeys = ['Tanggal', 'tanggal', 'Date', 'date', 'TglOrder', 'Tgl Order'];
+  const monthCount = {};
+  let parsed = 0;
+
+  for (let i = 0; i < Math.min(rows.length, 50); i++) {
+    const row = rows[i];
+    let tglRaw = null;
+    for (const k of tglKeys) { if (row[k] !== undefined && row[k] !== '') { tglRaw = row[k]; break; } }
+    if (!tglRaw) continue;
+    const d = normDate(tglRaw);
+    if (!d) continue;
+    const ym = d.slice(0, 7); // "YYYY-MM"
+    monthCount[ym] = (monthCount[ym] || 0) + 1;
+    parsed++;
+  }
+
+  if (!parsed) return; // tidak bisa detect, biarkan form apa adanya
+
+  // Ambil bulan paling banyak muncul
+  const detected = Object.entries(monthCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (!detected) return;
+
+  const [y, m] = detected.split('-');
+  const bulanMEl = document.getElementById('uploadBulanM');
+  const bulanYEl = document.getElementById('uploadBulanY');
+  if (bulanMEl) bulanMEl.value = m;
+  if (bulanYEl) bulanYEl.value = y;
+
+  toast('Bulan terdeteksi otomatis: ' + BULAN_NAMES[+m] + ' ' + y, 'ok');
 }
 
 // ═══ ANALYZE DATA ═══
