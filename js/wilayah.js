@@ -165,8 +165,9 @@ function renderWilayahTable() {
   const level = wilayahDrillLevel;
   const groupMap = {};
   data.forEach(r => {
-    const key = (r[level]||'').trim() || '(Tidak Ada Data)';
-    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{} };
+    const raw = (r[level]||'').trim();
+    const key = raw.toLowerCase() || '(tidak ada data)';
+    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{}, displayName: raw || '(Tidak Ada Data)' };
     const cnt = r.total_order||1;
     groupMap[key].order += cnt;
     groupMap[key].qty   += r.total_qty || r.quantity || cnt;
@@ -192,7 +193,8 @@ function renderWilayahTable() {
   const canDrill = level !== 'kelurahan';
   const nextLevel = {provinsi:'kabupaten',kabupaten:'kecamatan',kecamatan:'kelurahan'}[level];
 
-  document.getElementById('wilayahTbody').innerHTML = pageData.map(([name,d])=>{
+  document.getElementById('wilayahTbody').innerHTML = pageData.map(([,d])=>{
+    const name     = d.displayName;
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
     const safeN    = name.replace(/'/g,"\\'");
     const pctDeliv = d.order ? Math.round(d.delivered/d.order*100) : 0;
@@ -339,8 +341,9 @@ function getCurrentViewData() {
   const level = wilayahDrillLevel;
   const groupMap = {};
   data.forEach(r => {
-    const key = (r[level]||'').trim() || '(Tidak Ada Data)';
-    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{} };
+    const raw = (r[level]||'').trim();
+    const key = raw.toLowerCase() || '(tidak ada data)';
+    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{}, displayName: raw || '(Tidak Ada Data)' };
     const cnt = r.total_order||1;
     groupMap[key].order += cnt;
     groupMap[key].qty   += r.total_qty || r.quantity || cnt;
@@ -350,10 +353,10 @@ function getCurrentViewData() {
     else if (cls === 'rts')  groupMap[key].rts       += cnt;
     if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+cnt;
   });
-  return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([name, d]) => {
+  return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([, d]) => {
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
     const avg = d.order ? Math.round(d.omzet/d.order) : 0;
-    return { name, order: d.order, qty: d.qty, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
+    return { name: d.displayName, order: d.order, qty: d.qty, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
   });
 }
 
@@ -362,10 +365,11 @@ function getWilayahLevelData(level) {
   const parentKey = { provinsi: null, kabupaten: 'provinsi', kecamatan: 'kabupaten', kelurahan: 'kecamatan' };
   const groupMap = {};
   wilayahFilter.forEach(r => {
-    const key = (r[level]||'').trim();
-    if (!key) return;
-    const parent = parentKey[level] ? (r[parentKey[level]]||'') : null;
-    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{}, parent: parent||'' };
+    const raw = (r[level]||'').trim();
+    if (!raw) return;
+    const key = raw.toLowerCase();
+    const parent = parentKey[level] ? (r[parentKey[level]]||'').trim() : null;
+    if (!groupMap[key]) groupMap[key] = { order:0, qty:0, omzet:0, delivered:0, rts:0, produkCount:{}, displayName: raw, parent: parent||'' };
     const cnt = r.total_order||1;
     groupMap[key].order += cnt;
     groupMap[key].qty   += r.total_qty || r.quantity || cnt;
@@ -375,10 +379,10 @@ function getWilayahLevelData(level) {
     else if (cls === 'rts')  groupMap[key].rts       += cnt;
     if (r.produk) groupMap[key].produkCount[r.produk] = (groupMap[key].produkCount[r.produk]||0)+cnt;
   });
-  return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([name, d]) => {
+  return Object.entries(groupMap).sort((a,b)=>b[1].order-a[1].order).map(([, d]) => {
     const terlaris = Object.entries(d.produkCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
     const avg = d.order ? Math.round(d.omzet/d.order) : 0;
-    return { name, parent: d.parent, order: d.order, qty: d.qty, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
+    return { name: d.displayName, parent: d.parent, order: d.order, qty: d.qty, omzet: d.omzet, delivered: d.delivered, rts: d.rts, terlaris, avg };
   });
 }
 
